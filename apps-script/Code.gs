@@ -8,6 +8,9 @@
  *   - column K holds a unique ID per house, filled in automatically
  *
  * The password lives in Project Settings → Script properties as PASSWORD.
+ *
+ * @OnlyCurrentDoc  Limits the script's permission to this one spreadsheet,
+ *                  rather than every spreadsheet in the owner's Drive.
  */
 
 var TABS = {
