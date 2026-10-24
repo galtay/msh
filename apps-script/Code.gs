@@ -6,6 +6,7 @@
  *   - one tab per list, named as in TABS below (matched ignoring case/spaces)
  *   - row 1 is headers; columns A–J are FIELDS in order
  *   - column K holds a unique ID per house, filled in automatically
+ *   - column L holds the 👍/👎 ratings of each note, as JSON, e.g. {"shirley":"+","martin":"-"}
  *
  * The password lives in Project Settings → Script properties as PASSWORD.
  *
@@ -23,6 +24,11 @@ var FIELDS = ['name', 'location', 'price', 'link', 'distShrewsbury', 'distLudlow
   'shirley', 'martin', 'actions', 'agent'];
 var LINK_COL = FIELDS.indexOf('link') + 1;
 var ID_COL = FIELDS.length + 1;
+var RATINGS_COL = ID_COL + 1;
+var LAST_COL = RATINGS_COL;
+var HEADERS = ['House name', 'Location', 'Price', 'Link', 'Distance to Shrewsbury',
+  'Distance to Ludlow', "Mum's initial thoughts", "Dad's initial thoughts",
+  'Actions taken and decision made', 'Estate agent contact', 'ID', 'Ratings'];
 
 function doPost(e) {
   try {
@@ -56,7 +62,7 @@ function listAll_() {
     var sheet = sheetFor_(status);
     var n = sheet.getLastRow() - 1;
     if (n < 1) return;
-    var range = sheet.getRange(2, 1, n, ID_COL);
+    var range = sheet.getRange(2, 1, n, LAST_COL);
     var values = range.getDisplayValues();
     // Links pasted as "smart chips" or rich text keep the URL out of the display value.
     var links = sheet.getRange(2, LINK_COL, n, 1).getRichTextValues();
@@ -68,6 +74,7 @@ function listAll_() {
       if (!row[ID_COL - 1]) { row[ID_COL - 1] = Utilities.getUuid(); idsChanged = true; }
       var house = { id: row[ID_COL - 1], status: status };
       FIELDS.forEach(function (f, c) { house[f] = row[c]; });
+      house.ratings = row[RATINGS_COL - 1];
       var url = links[i][0] && links[i][0].getLinkUrl();
       if (url) house.link = url;
       houses.push(house);
@@ -88,11 +95,12 @@ function save_(house) {
 
   var row = FIELDS.map(function (f) { return house[f] == null ? '' : String(house[f]); });
   row.push(house.id);
+  row.push(house.ratings == null ? '' : String(house.ratings));
 
   if (found && found.sheet.getSheetId() === target.getSheetId()) {
-    found.sheet.getRange(found.row, 1, 1, ID_COL).setValues([row]);
+    found.sheet.getRange(found.row, 1, 1, LAST_COL).setValues([row]);
   } else {
-    target.getRange(target.getLastRow() + 1, 1, 1, ID_COL).setValues([row]);
+    target.getRange(target.getLastRow() + 1, 1, 1, LAST_COL).setValues([row]);
     if (found) found.sheet.deleteRow(found.row); // moved to a different list
   }
   return house;
@@ -124,12 +132,25 @@ function sheetFor_(status) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheets = ss.getSheets();
   for (var i = 0; i < sheets.length; i++) {
-    if (norm_(sheets[i].getName()) === want) return sheets[i];
+    if (norm_(sheets[i].getName()) === want) return ensureColumns_(sheets[i]);
   }
   var sheet = ss.insertSheet(TABS[status]);
-  sheet.appendRow(['House name', 'Location', 'Price', 'Link', 'Distance to Shrewsbury',
-    'Distance to Ludlow', "Mum's initial thoughts", "Dad's initial thoughts",
-    'Actions taken and decision made', 'Estate agent contact', 'ID']);
+  sheet.appendRow(HEADERS);
+  return ensureColumns_(sheet);
+}
+
+// Tabs made before a column was added may be too narrow or lack its header.
+// Checked once per request (each request is a fresh script run).
+var columnsChecked_ = {};
+function ensureColumns_(sheet) {
+  if (columnsChecked_[sheet.getSheetId()]) return sheet;
+  columnsChecked_[sheet.getSheetId()] = true;
+  var have = sheet.getMaxColumns();
+  if (have < LAST_COL) sheet.insertColumnsAfter(have, LAST_COL - have);
+  var current = sheet.getRange(1, 1, 1, LAST_COL).getValues()[0];
+  if (current[ID_COL - 1] === '' || current[RATINGS_COL - 1] === '') {
+    sheet.getRange(1, ID_COL, 1, 2).setValues([[HEADERS[ID_COL - 1], HEADERS[RATINGS_COL - 1]]]);
+  }
   return sheet;
 }
 

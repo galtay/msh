@@ -16,15 +16,14 @@
   --warn-ink: #5c4a00;
   --err-bg: #fde4e1;
   --err-ink: #7a1f19;
-  /* card note colours */
-  --mum: #b0446b;
-  --mum-bg: #fbf1f4;
-  --dad: #2f62a8;
-  --dad-bg: #eff4fb;
-  --actions: #2f6d4f;
-  --actions-bg: #eef6f1;
-  --agent: #8a6420;
-  --agent-bg: #f8f3e8;
+  /* note ratings: neutral until someone taps 👍 or 👎 */
+  --neutral: #a3a8a5;
+  --neutral-bg: #f2f2f0;
+  --neutral-ink: #5f6663;
+  --pos: #2e8b57;
+  --pos-bg: #e6f4ea;
+  --neg: #c0392b;
+  --neg-bg: #fbe9e7;
   --todo: #8a5a00;
   --todo-bg: #fff7e0;
   --todo-line: #e3b448;
@@ -115,21 +114,29 @@ button { -webkit-appearance: none; }
 }
 a.fact { text-decoration: underline; -webkit-text-decoration-color: var(--muted); text-decoration-color: var(--muted); }
 
-/* Labelled note blocks, one colour each */
-.field { border-left: 4px solid; border-radius: 6px 10px 10px 6px; padding: 8px 10px; }
+/* Labelled note blocks: grey, or green/red once rated */
+.field { border-left: 4px solid; border-radius: 6px 10px 10px 6px; padding: 6px 6px 8px 10px; }
+.field-head { display: flex; align-items: center; justify-content: space-between; }
 .field-label {
-  font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 2px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
 }
+.rates { display: flex; flex-shrink: 0; }
+.rate {
+  width: 40px; height: 36px; margin-left: 4px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.08); background: rgba(255, 255, 255, 0.7);
+  font-size: 18px; line-height: 1; padding: 0; opacity: 0.45;
+}
+.rate.on { opacity: 1; background: #fff; border-color: currentColor; }
+.field.pos .rate.on { color: var(--pos); box-shadow: 0 0 0 1px var(--pos); }
+.field.neg .rate.on { color: var(--neg); box-shadow: 0 0 0 1px var(--neg); }
 .field-text { font-size: 15px; line-height: 1.4; }
 .clip { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.field.mum { border-color: var(--mum); background: var(--mum-bg); }
-.field.mum .field-label { color: var(--mum); }
-.field.dad { border-color: var(--dad); background: var(--dad-bg); }
-.field.dad .field-label { color: var(--dad); }
-.field.actions { border-color: var(--actions); background: var(--actions-bg); }
-.field.actions .field-label { color: var(--actions); }
-.field.agent { border-color: var(--agent); background: var(--agent-bg); }
-.field.agent .field-label { color: var(--agent); }
+.field.neutral { border-color: var(--neutral); background: var(--neutral-bg); }
+.field.neutral .field-label { color: var(--neutral-ink); }
+.field.pos { border-color: var(--pos); background: var(--pos-bg); }
+.field.pos .field-label { color: var(--pos); }
+.field.neg { border-color: var(--neg); background: var(--neg-bg); }
+.field.neg .field-label { color: var(--neg); }
 
 /* Something not filled in yet: dashed amber, tap to add */
 .missing {

@@ -184,12 +184,12 @@ function visibleHouses() {
   return list;
 }
 
-// The labelled note blocks on each card, in order. `cls` picks the colour.
+// The labelled note blocks on each card, in order.
 var NOTES = [
-  { key: 'shirley', label: 'Mum’s thoughts', add: 'Mum’s thoughts', cls: 'mum' },
-  { key: 'martin', label: 'Dad’s thoughts', add: 'Dad’s thoughts', cls: 'dad' },
-  { key: 'actions', label: 'Actions & decision', add: 'actions', cls: 'actions' },
-  { key: 'agent', label: 'Estate agent', add: 'estate agent', cls: 'agent' },
+  { key: 'shirley', label: 'Mum’s thoughts', add: 'Mum’s thoughts' },
+  { key: 'martin', label: 'Dad’s thoughts', add: 'Dad’s thoughts' },
+  { key: 'actions', label: 'Actions & decision', add: 'actions' },
+  { key: 'agent', label: 'Estate agent', add: 'estate agent' },
 ];
 
 function filled(v) { return str(v).trim() !== ''; }
@@ -199,8 +199,21 @@ function missing(field, label) {
   return '<button type="button" class="missing" data-fill="' + field + '">+ Add ' + label + '</button>';
 }
 
+// Ratings: {"shirley": "+", "martin": "-"}; a note with no rating is neutral.
+function ratingsOf(h) {
+  try { return JSON.parse(h.ratings || '{}') || {}; } catch (e) { return {}; }
+}
+
 function noteBlock(h, n) {
-  return '<div class="field ' + n.cls + '"><div class="field-label">' + esc(n.label) + '</div>' +
+  var r = ratingsOf(h)[n.key];
+  var mood = r === '+' ? 'pos' : r === '-' ? 'neg' : 'neutral';
+  function rateBtn(value, icon, label) {
+    return '<button type="button" class="rate' + (r === value ? ' on' : '') + '" data-rate="' + value +
+      '" data-key="' + n.key + '" aria-label="' + label + '" aria-pressed="' + (r === value) + '">' + icon + '</button>';
+  }
+  return '<div class="field ' + mood + '">' +
+    '<div class="field-head"><div class="field-label">' + esc(n.label) + '</div>' +
+    '<div class="rates">' + rateBtn('+', '👍', 'Positive') + rateBtn('-', '👎', 'Negative') + '</div></div>' +
     '<div class="field-text clip">' + esc(h[n.key]) + '</div></div>';
 }
 
@@ -361,24 +374,38 @@ async function deleteCurrent() {
   }
 }
 
-// Moves happen on screen straight away; if the save fails the house is put back.
-// Saves are queued so a quick Undo can't reach the sheet before the move it undoes.
-var moveQueue = Promise.resolve();
+// One-tap changes (moves, ratings) show on screen straight away; if the save
+// fails the house is put back. Saves are queued so they reach the sheet in
+// order, e.g. a quick Undo can't arrive before the move it undoes.
+var quickQueue = Promise.resolve();
+function quickChange(id, changes, failPrefix) {
+  var h = findHouse(id);
+  if (!h) return;
+  var updated = Object.assign({}, h, changes);
+  state.houses[indexOfId(state.houses, id)] = updated;
+  render();
+  quickQueue = quickQueue.then(function () { return store.save(updated); }).catch(function (err) {
+    var i = indexOfId(state.houses, id);
+    if (i >= 0) state.houses[i] = h;
+    render();
+    handleError(err, failPrefix);
+  });
+}
+
 function moveHouse(id, status, isUndo) {
   var h = findHouse(id);
   if (!h || h.status === status) return;
   var from = h.status;
-  var moved = Object.assign({}, h, { status: status });
-  state.houses[indexOfId(state.houses, id)] = moved;
-  render();
+  quickChange(id, { status: status }, 'Not moved');
   if (isUndo) toast('Moved back to ' + GROUPS[status]);
   else toast('Moved to ' + GROUPS[status], 'Undo', function () { moveHouse(id, from, true); });
-  moveQueue = moveQueue.then(function () { return store.save(moved); }).catch(function (err) {
-    var i = indexOfId(state.houses, id);
-    if (i >= 0) state.houses[i] = h;
-    render();
-    handleError(err, 'Not moved');
-  });
+}
+
+// Tapping the active rating again clears it back to neutral.
+function rateNote(id, key, value) {
+  var ratings = ratingsOf(findHouse(id));
+  if (ratings[key] === value) delete ratings[key]; else ratings[key] = value;
+  quickChange(id, { ratings: Object.keys(ratings).length ? JSON.stringify(ratings) : '' }, 'Rating not saved');
 }
 
 // ---------- wiring ----------
@@ -405,7 +432,9 @@ $('#list').addEventListener('click', function (e) {
   if (!card) return;
   var move = e.target.closest('[data-move]');
   var fill = e.target.closest('[data-fill]');
+  var rate = e.target.closest('[data-rate]');
   if (move) moveHouse(card.getAttribute('data-id'), move.getAttribute('data-move'));
+  else if (rate) rateNote(card.getAttribute('data-id'), rate.getAttribute('data-key'), rate.getAttribute('data-rate'));
   else openEditor(findHouse(card.getAttribute('data-id')), fill && fill.getAttribute('data-fill'));
 });
 
