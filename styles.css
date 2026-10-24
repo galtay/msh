@@ -51,7 +51,8 @@ button { -webkit-appearance: none; }
   padding-top: calc(10px + env(safe-area-inset-top));
   background: var(--accent); color: var(--accent-ink);
 }
-.topbar h1 { font-size: 20px; margin: 0; font-weight: 650; }
+.topbar h1 { font-size: 20px; line-height: 1.2; margin: 0 8px 0 0; font-weight: 650; flex: 1; min-width: 0; }
+@media (max-width: 480px) { .topbar h1 { font-size: 17px; } }
 .topbar-actions { display: flex; align-items: center; }
 .saving-note { font-size: 13px; font-weight: 500; opacity: 0.8; margin-left: 6px; }
 .icon-btn {
