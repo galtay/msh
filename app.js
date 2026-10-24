@@ -126,13 +126,21 @@ function mapsUrl(location) {
   return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(location + ', UK');
 }
 
+// Optional action, e.g. toast('Moved', 'Undo', fn), adds a button and stays up longer.
 var toastTimer;
-function toast(msg) {
+function toast(msg, actionLabel, onAction) {
   var el = $('#toast');
-  el.innerHTML = '<span>' + esc(msg) + '</span>';
+  el.innerHTML = '<span>' + esc(msg) +
+    (actionLabel ? ' <button type="button">' + esc(actionLabel) + '</button>' : '') + '</span>';
+  if (actionLabel) {
+    el.querySelector('button').addEventListener('click', function () {
+      el.hidden = true;
+      onAction();
+    });
+  }
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(function () { el.hidden = true; }, 2500);
+  toastTimer = setTimeout(function () { el.hidden = true; }, actionLabel ? 6000 : 2500);
 }
 
 function setBanner(msg, isError) {
@@ -185,6 +193,14 @@ function distChip(town, value) {
   return '<span class="chip">' + esc(label) + '</span>';
 }
 
+var GROUPS = { possible: 'Possibilities', visited: 'Visited', rejected: 'Rejected' };
+
+function moveButtons(h) {
+  return Object.keys(GROUPS).filter(function (g) { return g !== h.status; }).map(function (g) {
+    return '<button type="button" class="move-btn" data-move="' + g + '">→ ' + GROUPS[g] + '</button>';
+  }).join('');
+}
+
 function cardHtml(h) {
   var link = safeUrl(h.link);
   var chips = '';
@@ -198,8 +214,9 @@ function cardHtml(h) {
     note('Mum', h.shirley) +
     note('Dad', h.martin) +
     note('Actions', h.actions) +
-    (link ? '<div class="card-actions"><a href="' + esc(link) +
-      '" target="_blank" rel="noopener">View listing ↗</a></div>' : '') +
+    '<div class="card-actions">' +
+    (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">Listing ↗</a>' : '') +
+    moveButtons(h) + '</div>' +
     '</article>';
 }
 
@@ -310,6 +327,26 @@ async function deleteCurrent() {
   }
 }
 
+// Moves happen on screen straight away; if the save fails the house is put back.
+// Saves are queued so a quick Undo can't reach the sheet before the move it undoes.
+var moveQueue = Promise.resolve();
+function moveHouse(id, status, isUndo) {
+  var h = findHouse(id);
+  if (!h || h.status === status) return;
+  var from = h.status;
+  var moved = Object.assign({}, h, { status: status });
+  state.houses[indexOfId(state.houses, id)] = moved;
+  render();
+  if (isUndo) toast('Moved back to ' + GROUPS[status]);
+  else toast('Moved to ' + GROUPS[status], 'Undo', function () { moveHouse(id, from, true); });
+  moveQueue = moveQueue.then(function () { return store.save(moved); }).catch(function (err) {
+    var i = indexOfId(state.houses, id);
+    if (i >= 0) state.houses[i] = h;
+    render();
+    handleError(err, 'Not moved');
+  });
+}
+
 // ---------- wiring ----------
 
 $$('.tabs button').forEach(function (b) {
@@ -331,7 +368,10 @@ $('#sort').addEventListener('change', function (e) {
 $('#list').addEventListener('click', function (e) {
   if (e.target.closest('a')) return; // let links open normally
   var card = e.target.closest('.card');
-  if (card) openEditor(findHouse(card.getAttribute('data-id')));
+  if (!card) return;
+  var move = e.target.closest('[data-move]');
+  if (move) moveHouse(card.getAttribute('data-id'), move.getAttribute('data-move'));
+  else openEditor(findHouse(card.getAttribute('data-id')));
 });
 
 $('#addBtn').addEventListener('click', function () { openEditor(null); });
