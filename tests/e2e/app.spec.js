@@ -557,3 +557,18 @@ test('a photo that no longer loads is hidden, not shown broken', async ({ app, b
   await expect(app.card('Bramble Cottage').locator('.photo')).toBeHidden();
   await expect(app.card('Bramble Cottage').locator('h3')).toBeVisible();
 });
+
+test('prices with wording show it small, and still sort by amount', async ({ page, app, backend }) => {
+  for (const [name, price] of [['Offer Region', 'Offers in Region of £525,000'], ['Plain Number', '310000'], ['Guide', 'Guide Price £499,950']]) {
+    backend.post({ action: 'create', password: PASSWORD, house: { name, price } });
+  }
+  await app.open();
+  const card = app.card('Offer Region');
+  await expect(card.locator('.price-wording')).toHaveText('Offers in Region of');
+  await expect(card.locator('.price')).toHaveText('Offers in Region of£525,000');
+  await expect(app.card('Plain Number').locator('.price')).toHaveText('£310,000');
+  await page.selectOption('#sort', 'priceAsc');
+  const names = await page.locator('.card h3').allTextContents();
+  const order = ['Plain Number', 'Bramble Cottage', 'Guide', 'Old Mill House', 'Offer Region'];
+  expect(names.filter((n) => order.includes(n))).toEqual(order);
+});

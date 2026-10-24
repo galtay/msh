@@ -2,7 +2,8 @@
 // (checked against live pages in October 2026), with made-up content:
 //   window.__PAGE_MODEL = {"data": "<JSON of one flat array>", "encoding": ...};
 // Object values in the array are indexes into the same array; arr[0] is the root.
-function rightmovePage({ lat = 52.5, lng = -2.7, pinType = 'ACCURATE_POINT', radius = 0, photos = 3, id = 123456 } = {}) {
+function rightmovePage({ lat = 52.5, lng = -2.7, pinType = 'ACCURATE_POINT', radius = 0, photos = 3, id = 123456,
+  price = '£475,000', wording = 'Offers Over', archived = false } = {}) {
   const arr = [];
   const add = (v) => { arr.push(v); return arr.length - 1; };
   const ref = (v) => add(v);
@@ -18,7 +19,9 @@ function rightmovePage({ lat = 52.5, lng = -2.7, pinType = 'ACCURATE_POINT', rad
     }));
   }
   const location = add({ latitude: ref(lat), longitude: ref(lng), circleRadiusOnMap: ref(radius), zoomLevel: ref(15), pinType: ref(pinType), showMap: ref(true) });
-  arr[property] = { id: ref(id), images: ref(images), location, text: ref({ description: ref('A made-up house. }{ Not real.') }) };
+  const prices = add({ primaryPrice: ref(price), secondaryPrice: ref(null), displayPriceQualifier: ref(wording), pricePerSqFt: ref(null) });
+  const status = add({ published: ref(!archived), archived: ref(archived) });
+  arr[property] = { id: ref(id), status, prices, images: ref(images), location, text: ref({ description: ref('A made-up house. }{ Not real.') }) };
   arr[root] = { propertyData: property, metadata: ref({}), isAuthenticated: ref(false) };
   const model = { data: JSON.stringify(arr), encoding: 'flat' };
   return `<!doctype html><html><head><title>Made-up listing</title></head><body>

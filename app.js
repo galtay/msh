@@ -149,15 +149,19 @@ function esc(s) {
   });
 }
 
+// The first number in text like "Offers Over £475,000", "35 mins" or "450k".
 function num(s) {
-  var n = parseFloat(str(s).replace(/[£,\s]/g, '').replace(/k$/i, '000'));
-  return isFinite(n) ? n : null;
+  var m = str(s).replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*(k\b)?/i);
+  return m ? parseFloat(m[1]) * (m[2] ? 1000 : 1) : null;
 }
 
-function formatPrice(p) {
+// "£475,000" as is; "475000" as "£475,000"; any wording before the amount
+// ("Offers in Region of £525,000") goes small on its own line above it.
+function priceHtml(p) {
   var s = str(p).trim();
-  if (/^[\d,.]+$/.test(s)) return '£' + Number(s.replace(/,/g, '')).toLocaleString('en-GB');
-  return s;
+  if (/^[\d,.]+$/.test(s)) return esc('£' + Number(s.replace(/,/g, '')).toLocaleString('en-GB'));
+  var m = s.match(/^(.*?[^\s£\d,.])\s*(£\s*[\d,]+(?:\.\d+)?)$/);
+  return m ? '<span class="price-wording">' + esc(m[1]) + '</span>' + esc(m[2]) : esc(s);
 }
 
 function safeUrl(u) {
@@ -312,7 +316,7 @@ function cardHtml(h) {
     photoHtml(h, link) +
     '<div class="card-top">' +
       '<h3>' + (esc(h.name) || '<i>Unnamed</i>') + '</h3>' +
-      (filled(h.price) ? '<span class="price">' + esc(formatPrice(h.price)) + '</span>'
+      (filled(h.price) ? '<span class="price">' + priceHtml(h.price) + '</span>'
         : missing('price', 'price')) +
     '</div>' +
     (todo ? '<div class="todo">' + todo + (todo === 1 ? ' detail' : ' details') + ' to fill in</div>' : '') +

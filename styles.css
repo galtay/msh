@@ -106,7 +106,8 @@ button { -webkit-appearance: none; }
 .card:active { opacity: 0.85; }
 .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
 .card h3 { margin: 0 12px 0 0; font-size: 19px; line-height: 1.25; }
-.price { font-size: 18px; font-weight: 700; white-space: nowrap; color: var(--accent); }
+.price { font-size: 18px; font-weight: 700; white-space: nowrap; color: var(--accent); text-align: right; }
+.price-wording { display: block; font-size: 12px; font-weight: 600; color: var(--muted); white-space: normal; }
 .card-top .missing { flex-shrink: 0; width: auto; }
 .todo {
   display: inline-block; font-size: 12px; font-weight: 700; color: var(--todo);
