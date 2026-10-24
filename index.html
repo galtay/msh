@@ -30,11 +30,11 @@
   <div class="toolbar">
     <input id="search" type="search" placeholder="Search name, place, notes…" autocomplete="off">
     <select id="sort" aria-label="Sort">
+      <option value="newest">Newest first</option>
       <option value="sheet">Oldest first</option>
       <option value="priceAsc">Price ↑</option>
       <option value="priceDesc">Price ↓</option>
       <option value="shrewsbury">Nearest Shrewsbury</option>
-      <option value="ludlow">Nearest Ludlow</option>
     </select>
   </div>
 
@@ -64,10 +64,7 @@
         <label>Location (village or postcode) <input name="location"></label>
         <label>Price <input name="price" placeholder="e.g. £450,000"></label>
         <label>Link <input name="link" type="url" placeholder="https://…" autocapitalize="off" autocorrect="off"></label>
-        <div class="row2">
-          <label>To Shrewsbury <input name="distShrewsbury" placeholder="e.g. 25 min"></label>
-          <label>To Ludlow <input name="distLudlow" placeholder="e.g. 15 min"></label>
-        </div>
+        <label>Distance to Shrewsbury <input name="distShrewsbury" placeholder="e.g. 25 min"></label>
         <label>Mum's initial thoughts <textarea name="shirley" rows="3"></textarea></label>
         <label>Dad's initial thoughts <textarea name="martin" rows="3"></textarea></label>
         <label>Actions taken &amp; decision made <textarea name="actions" rows="3"></textarea></label>

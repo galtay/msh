@@ -5,8 +5,11 @@
 // Written to run on older iPads (Safari 10.3+): no `?.`, `??`, <dialog>,
 // object spread or optional catch bindings.
 
-var FIELDS = ['name', 'location', 'price', 'link', 'distShrewsbury', 'distLudlow',
+// Fields shown in the app. The sheet also keeps a distLudlow column (no longer
+// shown); saves start from the stored house so its value is left alone.
+var FIELDS = ['name', 'location', 'price', 'link', 'distShrewsbury',
   'shirley', 'martin', 'actions', 'agent'];
+var SORTS = ['newest', 'sheet', 'priceAsc', 'priceDesc', 'shrewsbury'];
 
 var API_URL = (window.MSH_API_URL || '').trim();
 var DEMO = !API_URL;
@@ -15,7 +18,7 @@ var state = {
   houses: [],
   status: localGet('msh.tab') || 'possible',
   query: '',
-  sort: localGet('msh.sort') || 'sheet',
+  sort: SORTS.indexOf(localGet('msh.sort')) >= 0 ? localGet('msh.sort') : 'newest',
   editingId: null,
 };
 
@@ -176,7 +179,8 @@ function visibleHouses() {
   if (state.sort === 'priceAsc') list.sort(by('price', 1));
   if (state.sort === 'priceDesc') list.sort(by('price', -1));
   if (state.sort === 'shrewsbury') list.sort(by('distShrewsbury', 1));
-  if (state.sort === 'ludlow') list.sort(by('distLudlow', 1));
+  // Rows are in sheet order, and new or moved houses go to the bottom of their tab.
+  if (state.sort === 'newest') list.reverse();
   return list;
 }
 
@@ -204,7 +208,7 @@ function moveButtons(h) {
 function cardHtml(h) {
   var link = safeUrl(h.link);
   var chips = '';
-  chips += distChip('Shrewsbury', h.distShrewsbury) + distChip('Ludlow', h.distLudlow);
+  chips += distChip('Shrewsbury', h.distShrewsbury);
   return '<article class="card" data-id="' + esc(h.id) + '" tabindex="0">' +
     '<div class="card-top"><h3>' + (esc(h.name) || '<i>Unnamed</i>') + '</h3>' +
     '<span class="price">' + esc(formatPrice(h.price)) + '</span></div>' +
@@ -292,7 +296,9 @@ var saving = false;
 async function saveFromForm() {
   if (saving) return;
   var form = $('#editForm');
-  var house = { id: state.editingId, status: form.elements.status.value };
+  // Start from the stored house so fields the form doesn't show (e.g. distLudlow) survive.
+  var house = Object.assign({}, findHouse(state.editingId),
+    { id: state.editingId, status: form.elements.status.value });
   FIELDS.forEach(function (f) { house[f] = form.elements[f].value.trim(); });
   if (!house.name) { toast('Please give the house a name'); return; }
   saving = true;
