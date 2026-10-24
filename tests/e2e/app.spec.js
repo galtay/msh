@@ -410,9 +410,10 @@ test('fits the screen without sideways scrolling, with finger-sized buttons', as
   expect(overflow).toBeLessThanOrEqual(0);
   for (const width of [page.viewportSize().width, 320]) {
     await page.setViewportSize({ width, height: page.viewportSize().height });
-    const clipped = await page.locator('.tabs button, .move-btn').evaluateAll((els) =>
-      els.filter((x) => x.scrollWidth > x.clientWidth + 1).map((x) => x.textContent.trim()));
-    expect(clipped, `labels cut off at ${width}px`).toEqual([]);
+    // Tab labels shrink to fit after a resize (fitTabs), so allow a moment.
+    await expect.poll(() => page.locator('.tabs button, .move-btn').evaluateAll((els) =>
+      els.filter((x) => x.scrollWidth > x.clientWidth + 1).map((x) => x.textContent.trim())),
+    { message: `labels cut off at ${width}px` }).toEqual([]);
   }
   for (const sel of ['.rate', '.move-btn', '.missing', '.tabs button', '#addBtn']) {
     const box = await page.locator(sel).first().boundingBox();

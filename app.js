@@ -348,11 +348,26 @@ function render() {
       return h.status === b.getAttribute('data-status');
     }).length;
   });
+  fitTabs();
   var list = visibleHouses();
   $('#list').innerHTML = list.length
     ? list.map(cardHtml).join('')
     : '<div class="empty">' + (state.query ? 'No matches.' : 'Nothing here yet.') + '</div>';
 }
+
+// Four tabs share a narrow screen; if a label doesn't fit (a wider font, or
+// large text turned on), shrink that label's text a little until it does.
+function fitTabs() {
+  $$('.tabs button').forEach(function (b) {
+    b.style.fontSize = '';
+    var size = parseFloat(getComputedStyle(b).fontSize);
+    while (b.scrollWidth > b.clientWidth + 1 && size > 9) {
+      size -= 0.5;
+      b.style.fontSize = size + 'px';
+    }
+  });
+}
+window.addEventListener('resize', fitTabs);
 
 // ---------- data flow ----------
 
