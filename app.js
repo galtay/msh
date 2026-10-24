@@ -59,15 +59,25 @@ var localStore = {
 
 function AuthError(message) { this.message = message; }
 
+// AbortController is too new for old iPads, so race the request against a timer instead.
+function withTimeout(promise, ms) {
+  return new Promise(function (resolve, reject) {
+    var timer = setTimeout(function () { reject(new Error('the sheet took too long to answer')); }, ms);
+    promise.then(
+      function (v) { clearTimeout(timer); resolve(v); },
+      function (e) { clearTimeout(timer); reject(e); });
+  });
+}
+
 var remoteStore = {
   call: async function (payload) {
     payload.password = localGet('msh.password') || '';
     // text/plain keeps this a "simple" request, so Apps Script needs no CORS preflight.
-    var res = await fetch(API_URL, {
+    var res = await withTimeout(fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload),
-    });
+    }), 20000);
     var data = await res.json();
     if (data.auth) throw new AuthError(data.error);
     if (!data.ok) throw new Error(data.error || 'Request failed');
@@ -212,18 +222,24 @@ function handleError(err, prefix) {
   }
 }
 
-async function refresh(quiet) {
+// mode: 'load' (page opened; spin), 'tap' (refresh button; spin + toast),
+// 'background' (app came back into view; silent unless it fails).
+var refreshing = false;
+async function refresh(mode) {
+  if (refreshing) return;
+  refreshing = true;
   var btn = $('#refreshBtn');
-  btn.classList.add('spinning');
+  if (mode !== 'background') btn.classList.add('spinning');
   try {
     state.houses = await store.list();
     setBanner(DEMO ? 'Demo mode: houses are saved on this device only.' : '');
     render();
-    if (!quiet) toast('Up to date');
+    if (mode === 'tap') toast('Up to date');
   } catch (err) {
     if (err instanceof AuthError) handleError(err);
     else setBanner('Couldn’t load the list (' + err.message + '). Check the internet connection and tap ⟳.', true);
   } finally {
+    refreshing = false;
     btn.classList.remove('spinning');
   }
 }
@@ -312,7 +328,7 @@ $('#list').addEventListener('click', function (e) {
 });
 
 $('#addBtn').addEventListener('click', function () { openEditor(null); });
-$('#refreshBtn').addEventListener('click', function () { refresh(false); });
+$('#refreshBtn').addEventListener('click', function () { refresh('tap'); });
 $('#editForm').addEventListener('submit', function (e) { e.preventDefault(); saveFromForm(); });
 $('#deleteBtn').addEventListener('click', deleteCurrent);
 $$('[data-close]').forEach(function (b) {
@@ -323,7 +339,7 @@ $('#loginForm').addEventListener('submit', function (e) {
   e.preventDefault();
   localSet('msh.password', e.target.elements.password.value);
   showPanel('#loginPanel', false);
-  refresh(true);
+  refresh('load');
 });
 
 $('#logoutBtn').hidden = DEMO;
@@ -336,9 +352,9 @@ $('#logoutBtn').addEventListener('click', function () {
 
 // Pick up changes made on another device when the app comes back into view.
 document.addEventListener('visibilitychange', function () {
-  if (document.visibilityState === 'visible' && !DEMO && localGet('msh.password')) refresh(true);
+  if (document.visibilityState === 'visible' && !DEMO && localGet('msh.password')) refresh('background');
 });
 
 render();
 if (!DEMO && !localGet('msh.password')) showLogin();
-else refresh(true);
+else refresh('load');
