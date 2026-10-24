@@ -76,6 +76,17 @@
     </form>
   </div>
 
+  <!-- "Already on the list?" warning, shown over the edit form -->
+  <div id="dupPanel" class="panel dup" hidden>
+    <div class="dup-box" role="alertdialog" aria-labelledby="dupTitle" aria-describedby="dupText">
+      <h2 id="dupTitle">Already on the list?</h2>
+      <p id="dupText"></p>
+      <button type="button" id="dupShow" class="primary">Show the existing one</button>
+      <button type="button" id="dupSave" class="secondary">Add anyway</button>
+      <button type="button" id="dupBack" class="link-btn">Go back</button>
+    </div>
+  </div>
+
   <!-- Password screen -->
   <div id="loginPanel" class="panel login" hidden>
     <form id="loginForm" class="login-box">

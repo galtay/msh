@@ -188,7 +188,8 @@ function setBanner(msg, isError) {
 
 function showPanel(id, show) {
   $(id).hidden = !show;
-  document.body.classList.toggle('locked', !$('#editPanel').hidden || !$('#loginPanel').hidden);
+  document.body.classList.toggle('locked',
+    !$('#editPanel').hidden || !$('#loginPanel').hidden || !$('#dupPanel').hidden);
 }
 
 // ---------- rendering ----------
@@ -401,9 +402,74 @@ function formChanges(form, original) {
   return changes;
 }
 
+// ---------- duplicates ----------
+
+// The same listing, however the link was copied: Rightmove links reduce to the
+// property number; others drop the part after ? or # and any trailing slash.
+function listingKey(link) {
+  var s = str(link).trim().toLowerCase();
+  var rightmove = s.match(/rightmove\.co\.uk\/(?:properties\/|property-for-sale\/property-)(\d+)/);
+  if (rightmove) return 'rightmove:' + rightmove[1];
+  return s.replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[?#]/)[0].replace(/\/+$/, '');
+}
+
+// Names and places compared ignoring capitals, spaces and punctuation.
+function textKey(v) { return str(v).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+// Houses in any group that look like `candidate`, with the reason why.
+function findDuplicates(candidate, excludeId) {
+  var link = listingKey(candidate.link);
+  var name = textKey(candidate.name);
+  var place = textKey(candidate.location);
+  var found = [];
+  state.houses.forEach(function (h) {
+    if (h.id === excludeId) return;
+    if (link && listingKey(h.link) === link) found.push({ house: h, reason: 'the same listing link' });
+    else if (name && textKey(h.name) === name && textKey(h.location) === place) {
+      found.push({ house: h, reason: 'the same name and location' });
+    }
+  });
+  return found;
+}
+
+var onDuplicateSave = null;
+function showDuplicate(match, isNew, onSave) {
+  var h = match.house;
+  $('#dupText').innerHTML = 'This looks like <b>' + esc(h.name) + '</b>' +
+    (filled(h.location) ? ' (' + esc(h.location) + ')' : '') +
+    ', already in <b>' + GROUPS[h.status] + '</b>. It has ' + match.reason + '.';
+  $('#dupSave').textContent = isNew ? 'Add anyway' : 'Save anyway';
+  $('#dupShow').setAttribute('data-id', h.id);
+  onDuplicateSave = onSave;
+  showPanel('#dupPanel', true);
+}
+
+// Leaves the form (discarding it) and points at the existing house.
+function showExisting(id) {
+  var h = findHouse(id);
+  showPanel('#dupPanel', false);
+  showPanel('#editPanel', false);
+  if (!h) return;
+  state.status = h.status;
+  state.query = '';
+  $('#search').value = '';
+  localSet('msh.tab', state.status);
+  render();
+  var card = document.querySelector('.card[data-id="' + id.replace(/"/g, '') + '"]');
+  if (card) {
+    card.scrollIntoView();
+    card.classList.add('flash');
+    setTimeout(function () { card.classList.remove('flash'); }, 2100);
+  }
+}
+
+// ---------- saving the form ----------
+
 var saving = false;
-async function saveFromForm() {
+// opts.allowDuplicate: the person has seen the duplicate warning and chose to save anyway.
+async function saveFromForm(opts) {
   if (saving) return;
+  opts = opts || {};
   var form = $('#editForm');
   var original = state.editingOriginal;
   var changes = formChanges(form, original);
@@ -411,9 +477,19 @@ async function saveFromForm() {
   if (!name) { toast('Please give the house a name'); return; }
   if (original && !Object.keys(changes).length) { showPanel('#editPanel', false); return; }
   saving = true;
-  toast('Saving…');
   try {
     await quickQueue; // keep the order of saves to the sheet
+    var identityChanged = !original || 'link' in changes || 'name' in changes || 'location' in changes;
+    if (identityChanged && !opts.allowDuplicate) {
+      // Check against the latest list, so a house just added on another device counts too.
+      try { state.houses = (await store.list()).houses.map(tidy); render(); } catch (e) { /* offline: use what we have */ }
+      var dupes = findDuplicates(applyChanges(original || {}, changes), original && original.id);
+      if (dupes.length) {
+        showDuplicate(dupes[0], !original, function () { saveFromForm({ allowDuplicate: true }); });
+        return;
+      }
+    }
+    toast('Saving…');
     var saved = tidy(original ? await store.update(original.id, changes) : await store.create(changes));
     var i = indexOfId(state.houses, saved.id);
     if (i >= 0) state.houses[i] = saved; else state.houses.push(saved);
@@ -528,6 +604,12 @@ $('#addBtn').addEventListener('click', function () { openEditor(null); });
 $('#refreshBtn').addEventListener('click', function () { refresh('tap'); });
 $('#editForm').addEventListener('submit', function (e) { e.preventDefault(); saveFromForm(); });
 $('#deleteBtn').addEventListener('click', deleteCurrent);
+$('#dupBack').addEventListener('click', function () { showPanel('#dupPanel', false); });
+$('#dupSave').addEventListener('click', function () {
+  showPanel('#dupPanel', false);
+  if (onDuplicateSave) onDuplicateSave();
+});
+$('#dupShow').addEventListener('click', function () { showExisting($('#dupShow').getAttribute('data-id')); });
 $$('[data-close]').forEach(function (b) {
   b.addEventListener('click', function () { showPanel('#editPanel', false); });
 });

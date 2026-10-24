@@ -412,3 +412,101 @@ test('fits the screen without sideways scrolling, with finger-sized buttons', as
     expect(box.height, sel).toBeGreaterThanOrEqual(34);
   }
 });
+
+// ---------- duplicates ----------
+
+async function addHouse(page, fields) {
+  await page.click('#addBtn');
+  for (const [k, v] of Object.entries(fields)) await page.fill(`[name=${k}]`, v);
+  await page.click('.panel-head button[type=submit]');
+}
+
+const allHouses = (backend) => backend.post({ action: 'list', password: PASSWORD }).houses;
+
+test('warns when adding a listing that is already in another group', async ({ page, app, backend }) => {
+  backend.post({ action: 'create', password: PASSWORD, house: {
+    name: 'Calves Hill Barn', location: 'Haughton', status: 'rejected',
+    link: 'https://www.rightmove.co.uk/properties/88117197#/?channel=RES_BUY' } });
+  await app.open();
+  // Same listing, copied differently, under another name.
+  await addHouse(page, { name: 'Barn near Bridgnorth', link: 'https://rightmove.co.uk/properties/88117197?utm=share' });
+  const dup = page.locator('#dupPanel');
+  await expect(dup).toBeVisible();
+  await expect(dup).toContainText('This looks like Calves Hill Barn (Haughton), already in Rejected. It has the same listing link.');
+
+  // Go back: the form and its typing are still there; nothing was saved.
+  await page.click('#dupBack');
+  await expect(dup).toBeHidden();
+  await expect(page.locator('[name=name]')).toHaveValue('Barn near Bridgnorth');
+  expect(allHouses(backend).filter((h) => h.name === 'Barn near Bridgnorth')).toHaveLength(0);
+
+  // Show the existing one: jumps to its group and highlights it.
+  await page.click('.panel-head button[type=submit]');
+  await page.click('#dupShow');
+  await expect(page.locator('#editPanel')).toBeHidden();
+  await expect(page.locator('.tabs [data-status=rejected]')).toHaveClass(/active/);
+  await expect(app.card('Calves Hill Barn')).toHaveClass(/flash/);
+  expect(allHouses(backend).filter((h) => h.name === 'Barn near Bridgnorth')).toHaveLength(0);
+});
+
+test('“Add anyway” saves the house despite the warning', async ({ page, app, backend }) => {
+  await app.open();
+  await addHouse(page, { name: 'bramble  cottage!', location: 'TESTVILLE' }); // same name and place as p1
+  await expect(page.locator('#dupPanel')).toContainText('Bramble Cottage (Testville), already in Possibilities. It has the same name and location.');
+  await page.click('#dupSave');
+  await expect(page.locator('#editPanel')).toBeHidden();
+  expect(allHouses(backend).filter((h) => textKeyNode(h.name) === 'bramble cottage')).toHaveLength(2);
+});
+
+test('a house just added on another device is caught too', async ({ page, app, otherDevice }) => {
+  await app.open();
+  await otherDevice.open();
+  await addHouse(otherDevice.page, { name: 'Fresh Listing', link: 'https://www.zoopla.co.uk/for-sale/details/12345/' });
+  await expect(otherDevice.card('Fresh Listing')).toBeVisible();
+  // This device hasn't refreshed since, but the check fetches the latest list first.
+  await addHouse(page, { name: 'Same Place', link: 'https://zoopla.co.uk/for-sale/details/12345?search=1' });
+  await expect(page.locator('#dupPanel')).toContainText('Fresh Listing');
+});
+
+test('different houses, and edits that keep the link, raise no warning', async ({ page, app, backend }) => {
+  await app.open();
+  await addHouse(page, { name: 'Bramble Cottage', location: 'Elsewhere' }); // same name, different place
+  await expect(page.locator('#editPanel')).toBeHidden();
+  await expect(page.locator('#dupPanel')).toBeHidden();
+  await addHouse(page, { name: 'Another', link: 'https://example.com/listing/99' });
+  await expect(page.locator('#editPanel')).toBeHidden();
+  // Editing a note on an existing house doesn't check at all.
+  await app.card('Old Mill House').locator('h3').click();
+  await page.fill('[name=shirley]', 'Edited');
+  await page.click('.panel-head button[type=submit]');
+  await expect(page.locator('#editPanel')).toBeHidden();
+  await expect(page.locator('#dupPanel')).toBeHidden();
+});
+
+test('changing a house’s link to another house’s listing warns, and can be saved anyway', async ({ page, app, backend }) => {
+  await app.open();
+  await app.card('Old Mill House').locator('h3').click();
+  await page.fill('[name=link]', 'https://example.com/listing/1/'); // Bramble Cottage's
+  await page.click('.panel-head button[type=submit]');
+  await expect(page.locator('#dupPanel')).toContainText('Bramble Cottage');
+  await expect(page.locator('#dupSave')).toHaveText('Save anyway');
+  await page.click('#dupSave');
+  await expect(page.locator('#editPanel')).toBeHidden();
+  expect(house(backend, 'p2').link).toBe('https://example.com/listing/1/');
+});
+
+test('listing links are matched however they were copied', async ({ page, app }) => {
+  await app.open();
+  const keys = await page.evaluate(() => [
+    'https://www.rightmove.co.uk/properties/88233060#/?channel=RES_BUY',
+    'http://rightmove.co.uk/properties/88233060',
+    'https://www.rightmove.co.uk/property-for-sale/property-88233060.html',
+    'https://www.zoopla.co.uk/for-sale/details/123/?x=1',
+    'https://zoopla.co.uk/for-sale/details/123',
+    '',
+  ].map(listingKey));
+  expect(keys).toEqual(['rightmove:88233060', 'rightmove:88233060', 'rightmove:88233060',
+    'zoopla.co.uk/for-sale/details/123', 'zoopla.co.uk/for-sale/details/123', '']);
+});
+
+function textKeyNode(v) { return String(v).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
