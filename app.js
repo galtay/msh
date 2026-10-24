@@ -184,17 +184,30 @@ function visibleHouses() {
   return list;
 }
 
-function note(label, text) {
-  if (!str(text).trim()) return '';
-  return '<p class="note clip"><b>' + label + ':</b> ' + esc(text) + '</p>';
+// The labelled note blocks on each card, in order. `cls` picks the colour.
+var NOTES = [
+  { key: 'shirley', label: 'Mum’s thoughts', add: 'Mum’s thoughts', cls: 'mum' },
+  { key: 'martin', label: 'Dad’s thoughts', add: 'Dad’s thoughts', cls: 'dad' },
+  { key: 'actions', label: 'Actions & decision', add: 'actions', cls: 'actions' },
+  { key: 'agent', label: 'Estate agent', add: 'estate agent', cls: 'agent' },
+];
+
+function filled(v) { return str(v).trim() !== ''; }
+
+// A dashed "+ Add …" placeholder; tapping it opens the form at that field.
+function missing(field, label) {
+  return '<button type="button" class="missing" data-fill="' + field + '">+ Add ' + label + '</button>';
+}
+
+function noteBlock(h, n) {
+  return '<div class="field ' + n.cls + '"><div class="field-label">' + esc(n.label) + '</div>' +
+    '<div class="field-text clip">' + esc(h[n.key]) + '</div></div>';
 }
 
 // "nearest" (from the original sheet) means closest town, with no time recorded.
-function distChip(town, value) {
+function distLabel(value) {
   var v = str(value).trim();
-  if (!v) return '';
-  var label = v.toLowerCase() === 'nearest' ? 'Nearest ' + town : town + ' ' + v;
-  return '<span class="chip">' + esc(label) + '</span>';
+  return v.toLowerCase() === 'nearest' ? 'Nearest to Shrewsbury' : v + ' to Shrewsbury';
 }
 
 var GROUPS = { possible: 'Possibilities', visited: 'Visited', rejected: 'Rejected' };
@@ -205,22 +218,34 @@ function moveButtons(h) {
   }).join('');
 }
 
+var TRACKED = ['price', 'location', 'distShrewsbury', 'link'].concat(NOTES.map(function (n) { return n.key; }));
+
 function cardHtml(h) {
   var link = safeUrl(h.link);
-  var chips = '';
-  chips += distChip('Shrewsbury', h.distShrewsbury);
+  var todo = TRACKED.filter(function (f) { return !filled(h[f]); }).length;
+  var emptyNotes = NOTES.filter(function (n) { return !filled(h[n.key]); });
   return '<article class="card" data-id="' + esc(h.id) + '" tabindex="0">' +
-    '<div class="card-top"><h3>' + (esc(h.name) || '<i>Unnamed</i>') + '</h3>' +
-    '<span class="price">' + esc(formatPrice(h.price)) + '</span></div>' +
-    (h.location ? '<div class="loc">📍 <a href="' + mapsUrl(h.location) +
-      '" target="_blank" rel="noopener">' + esc(h.location) + '</a></div>' : '') +
-    (chips ? '<div class="chips">' + chips + '</div>' : '') +
-    note('Mum', h.shirley) +
-    note('Dad', h.martin) +
-    note('Actions', h.actions) +
+    '<div class="card-top">' +
+      '<h3>' + (esc(h.name) || '<i>Unnamed</i>') + '</h3>' +
+      (filled(h.price) ? '<span class="price">' + esc(formatPrice(h.price)) + '</span>'
+        : missing('price', 'price')) +
+    '</div>' +
+    (todo ? '<div class="todo">' + todo + (todo === 1 ? ' detail' : ' details') + ' to fill in</div>' : '') +
+    '<div class="facts">' +
+      (filled(h.location) ? '<a class="fact" href="' + mapsUrl(h.location) +
+        '" target="_blank" rel="noopener">📍 ' + esc(h.location) + '</a>' : missing('location', 'location')) +
+      (filled(h.distShrewsbury) ? '<span class="fact">🚗 ' + esc(distLabel(h.distShrewsbury)) + '</span>'
+        : missing('distShrewsbury', 'distance')) +
+    '</div>' +
+    NOTES.filter(function (n) { return filled(h[n.key]); }).map(function (n) { return noteBlock(h, n); }).join('') +
+    (emptyNotes.length ? '<div class="missing-row">' + emptyNotes.map(function (n) {
+      return missing(n.key, n.add);
+    }).join('') + '</div>' : '') +
     '<div class="card-actions">' +
-    (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">Listing ↗</a>' : '') +
-    moveButtons(h) + '</div>' +
+      (link ? '<a class="listing" href="' + esc(link) + '" target="_blank" rel="noopener">Listing ↗</a>'
+        : missing('link', 'link')) +
+      moveButtons(h) +
+    '</div>' +
     '</article>';
 }
 
@@ -280,7 +305,8 @@ function showLogin(message) {
   showPanel('#loginPanel', true);
 }
 
-function openEditor(house) {
+// focusField: jump straight to that input (used by the "+ Add …" placeholders).
+function openEditor(house, focusField) {
   var form = $('#editForm');
   form.reset();
   state.editingId = house ? house.id : null;
@@ -290,6 +316,8 @@ function openEditor(house) {
   FIELDS.forEach(function (f) { form.elements[f].value = house ? str(house[f]) : ''; });
   showPanel('#editPanel', true);
   form.querySelector('.panel-body').scrollTop = 0;
+  // Focus inside the tap itself, or iOS won't bring up the keyboard.
+  if (focusField && form.elements[focusField]) form.elements[focusField].focus();
 }
 
 var saving = false;
@@ -376,8 +404,9 @@ $('#list').addEventListener('click', function (e) {
   var card = e.target.closest('.card');
   if (!card) return;
   var move = e.target.closest('[data-move]');
+  var fill = e.target.closest('[data-fill]');
   if (move) moveHouse(card.getAttribute('data-id'), move.getAttribute('data-move'));
-  else openEditor(findHouse(card.getAttribute('data-id')));
+  else openEditor(findHouse(card.getAttribute('data-id')), fill && fill.getAttribute('data-fill'));
 });
 
 $('#addBtn').addEventListener('click', function () { openEditor(null); });
