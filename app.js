@@ -265,7 +265,7 @@ function noteBlock(h, n) {
     '<div class="field-head"><div class="field-label">' + esc(n.label) + '</div>' +
     (n.rateable ? '<div class="rates">' + rateBtn('+', '👍', 'Positive') + rateBtn('-', '👎', 'Negative') + '</div>' : '') +
     '</div>' +
-    '<div class="field-text clip">' + esc(h[n.key]) + '</div></div>';
+    '<div class="field-text">' + esc(h[n.key]) + '</div></div>';
 }
 
 // The original sheet sometimes recorded only the nearest town, with no time.

@@ -130,8 +130,7 @@ a.fact { text-decoration: underline; -webkit-text-decoration-color: var(--muted)
 .rate.on { opacity: 1; background: #fff; border-color: currentColor; }
 .field.pos .rate.on { color: var(--pos); box-shadow: 0 0 0 1px var(--pos); }
 .field.neg .rate.on { color: var(--neg); box-shadow: 0 0 0 1px var(--neg); }
-.field-text { font-size: 15px; line-height: 1.4; }
-.clip { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.field-text { font-size: 15px; line-height: 1.4; white-space: pre-line; word-wrap: break-word; overflow-wrap: break-word; }
 .field.neutral { border-color: var(--neutral); background: var(--neutral-bg); }
 .field.neutral .field-label { color: var(--neutral-ink); }
 .field.pos { border-color: var(--pos); background: var(--pos-bg); }

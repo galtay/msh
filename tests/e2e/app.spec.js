@@ -89,6 +89,29 @@ test('text from the sheet is shown as text, never as HTML', async ({ page, app, 
   expect(await page.evaluate(() => window.pwned)).toBeUndefined();
 });
 
+test('notes are shown in full, keeping their line breaks', async ({ app, backend }) => {
+  const long = 'First paragraph. ' + 'More detail about the house. '.repeat(30) +
+    '\n\nUpdate: decided against it. https://example.com/' + 'a-very-long-link-'.repeat(8);
+  backend.post({ action: 'update', password: PASSWORD, id: 'p1', changes: { actions: long } });
+  await app.open();
+  const text = app.card('Bramble Cottage').locator('.field-text', { hasText: 'Update: decided' });
+  await expect(text).toBeVisible();
+  const box = await text.evaluate((el) => {
+    const kept = el.getBoundingClientRect().height;
+    el.style.whiteSpace = 'normal'; // what it would look like with the line breaks lost
+    const lost = el.getBoundingClientRect().height;
+    el.style.whiteSpace = '';
+    return {
+      clipped: el.scrollHeight > el.clientHeight + 1,
+      overflowsCard: el.scrollWidth > el.clientWidth + 1,
+      lineBreaksKept: kept > lost,
+    };
+  });
+  expect(box.clipped).toBe(false);
+  expect(box.overflowsCard).toBe(false);
+  expect(box.lineBreaksKept).toBe(true);
+});
+
 test('only Mum’s and Dad’s thoughts have rating buttons', async ({ app }) => {
   await app.open();
   const keys = await app.card('Old Mill House').locator('.rate').evaluateAll((b) => b.map((x) => x.dataset.key));
