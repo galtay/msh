@@ -11,6 +11,9 @@ var FIELDS = ['name', 'location', 'price', 'link', 'distShrewsbury',
   'shirley', 'martin', 'actions', 'agent'];
 var SORTS = ['newest', 'sheet', 'priceAsc', 'priceDesc', 'shrewsbury'];
 
+// The oldest apps-script/Code.gs (its VERSION) this app works with.
+var MIN_API_VERSION = 3;
+
 var API_URL = (window.MSH_API_URL || '').trim();
 var DEMO = !API_URL;
 
@@ -20,6 +23,7 @@ var state = {
   query: '',
   sort: SORTS.indexOf(localGet('msh.sort')) >= 0 ? localGet('msh.sort') : 'newest',
   editingId: null,
+  editingOriginal: null, // the house as it was when the form opened
 };
 
 function $(sel) { return document.querySelector(sel); }
@@ -40,19 +44,31 @@ function newId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+// Both stores offer the same calls: list() → {houses, version},
+// create(house) → house, update(id, changes) → house, remove(id).
+// update() sends only what changed (see applyChanges), so two devices editing
+// different parts of the same house don't overwrite each other.
+
 var localStore = {
   load: function () {
     try { return JSON.parse(localGet('msh.houses') || '[]'); } catch (e) { return []; }
   },
   write: function (houses) { localSet('msh.houses', JSON.stringify(houses)); },
-  list: function () { return Promise.resolve(this.load()); },
-  save: function (house) {
+  list: function () { return Promise.resolve({ houses: this.load(), version: MIN_API_VERSION }); },
+  create: function (house) {
     var houses = this.load();
-    if (!house.id) house.id = newId();
-    var i = indexOfId(houses, house.id);
-    if (i >= 0) houses[i] = house; else houses.push(house);
+    var created = applyChanges({ id: newId(), status: 'possible' }, house);
+    houses.push(created);
     this.write(houses);
-    return Promise.resolve(house);
+    return Promise.resolve(created);
+  },
+  update: function (id, changes) {
+    var houses = this.load();
+    var i = indexOfId(houses, id);
+    if (i < 0) return Promise.reject(new Error('That house no longer exists'));
+    houses[i] = applyChanges(houses[i], changes);
+    this.write(houses);
+    return Promise.resolve(houses[i]);
   },
   remove: function (id) {
     this.write(this.load().filter(function (h) { return h.id !== id; }));
@@ -81,15 +97,32 @@ var remoteStore = {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload),
     }), 20000);
-    var data = await res.json();
+    var data;
+    try {
+      data = JSON.parse(await res.text());
+    } catch (e) {
+      // Google sends an HTML page when the script is broken or not deployed.
+      throw new Error('unexpected reply from the sheet (HTTP ' + res.status + ')');
+    }
     if (data.auth) throw new AuthError(data.error);
-    if (!data.ok) throw new Error(data.error || 'Request failed');
+    if (!data.ok) {
+      if (/^Unknown action/.test(data.error || '')) throw new Error(OUTDATED_SCRIPT);
+      throw new Error(data.error || 'request failed');
+    }
     return data;
   },
-  list: async function () { return (await this.call({ action: 'list' })).houses; },
-  save: async function (house) { return (await this.call({ action: 'save', house: house })).house; },
+  list: async function () {
+    var data = await this.call({ action: 'list' });
+    return { houses: data.houses, version: data.version || 1 };
+  },
+  create: async function (house) { return (await this.call({ action: 'create', house: house })).house; },
+  update: async function (id, changes) {
+    return (await this.call({ action: 'update', id: id, changes: changes })).house;
+  },
   remove: async function (id) { await this.call({ action: 'delete', id: id }); },
 };
+
+var OUTDATED_SCRIPT = 'the Google Sheet’s script is out of date and needs redeploying (see README)';
 
 var store = DEMO ? localStore : remoteStore;
 
@@ -202,7 +235,23 @@ function missing(field, label) {
 
 // Ratings: {"shirley": "+", "martin": "-"}; a note with no rating is neutral.
 function ratingsOf(h) {
-  try { return JSON.parse(h.ratings || '{}') || {}; } catch (e) { return {}; }
+  try { return JSON.parse((h && h.ratings) || '{}') || {}; } catch (e) { return {}; }
+}
+
+// Same rules as update_ in Code.gs: `ratings` in changes is a patch merged into
+// the stored ratings ({"shirley": "+", "martin": null}); anything else replaces.
+function applyChanges(h, changes) {
+  var out = Object.assign({}, h);
+  Object.keys(changes).forEach(function (k) {
+    if (k !== 'ratings') { out[k] = changes[k]; return; }
+    var r = ratingsOf(out);
+    Object.keys(changes.ratings).forEach(function (key) {
+      var v = changes.ratings[key];
+      if (v === '+' || v === '-') r[key] = v; else delete r[key];
+    });
+    out.ratings = Object.keys(r).length ? JSON.stringify(r) : '';
+  });
+  return out;
 }
 
 function noteBlock(h, n) {
@@ -301,8 +350,11 @@ async function refresh(mode) {
   if (mode !== 'background') btn.classList.add('spinning');
   try {
     await quickQueue; // let pending one-tap saves land first, or the list would undo them
-    state.houses = (await store.list()).map(tidy);
-    setBanner(DEMO ? 'Demo mode: houses are saved on this device only.' : '');
+    var data = await store.list();
+    state.houses = data.houses.map(tidy);
+    if (DEMO) setBanner('Demo mode: houses are saved on this device only.');
+    else if (data.version < MIN_API_VERSION) setBanner('Changes can’t be saved: ' + OUTDATED_SCRIPT + '.', true);
+    else setBanner('');
     render();
     if (mode === 'tap') toast('Up to date');
   } catch (err) {
@@ -327,6 +379,7 @@ function openEditor(house, focusField) {
   var form = $('#editForm');
   form.reset();
   state.editingId = house ? house.id : null;
+  state.editingOriginal = house ? Object.assign({}, house) : null;
   $('#editTitle').textContent = house ? 'Edit house' : 'New house';
   $('#deleteBtn').hidden = !house;
   form.elements.status.value = house ? house.status : state.status;
@@ -337,19 +390,31 @@ function openEditor(house, focusField) {
   if (focusField && form.elements[focusField]) form.elements[focusField].focus();
 }
 
+// Only fields that differ from when the form was opened are sent, so the save
+// can't undo something changed meanwhile on another device (or by a quick tap).
+function formChanges(form, original) {
+  var changes = {};
+  FIELDS.concat(['status']).forEach(function (f) {
+    var v = form.elements[f].value.trim();
+    if (!original || v !== str(original[f]).trim()) changes[f] = v;
+  });
+  return changes;
+}
+
 var saving = false;
 async function saveFromForm() {
   if (saving) return;
   var form = $('#editForm');
-  // Start from the stored house so fields the form doesn't show (e.g. distLudlow) survive.
-  var house = Object.assign({}, findHouse(state.editingId),
-    { id: state.editingId, status: form.elements.status.value });
-  FIELDS.forEach(function (f) { house[f] = form.elements[f].value.trim(); });
-  if (!house.name) { toast('Please give the house a name'); return; }
+  var original = state.editingOriginal;
+  var changes = formChanges(form, original);
+  var name = 'name' in changes ? changes.name : str(original && original.name);
+  if (!name) { toast('Please give the house a name'); return; }
+  if (original && !Object.keys(changes).length) { showPanel('#editPanel', false); return; }
   saving = true;
   toast('Saving…');
   try {
-    var saved = await store.save(house);
+    await quickQueue; // keep the order of saves to the sheet
+    var saved = tidy(original ? await store.update(original.id, changes) : await store.create(changes));
     var i = indexOfId(state.houses, saved.id);
     if (i >= 0) state.houses[i] = saved; else state.houses.push(saved);
     state.status = saved.status;
@@ -384,15 +449,19 @@ async function deleteCurrent() {
 var quickQueue = Promise.resolve();
 var pendingSaves = 0;
 function quickChange(id, changes, failPrefix) {
-  var h = findHouse(id);
-  if (!h) return;
-  var updated = Object.assign({}, h, changes);
-  state.houses[indexOfId(state.houses, id)] = updated;
+  var before = findHouse(id);
+  if (!before) return;
+  state.houses[indexOfId(state.houses, id)] = applyChanges(before, changes);
   render();
   setPending(1);
-  quickQueue = quickQueue.then(function () { return store.save(updated); }).catch(function (err) {
+  quickQueue = quickQueue.then(function () { return store.update(id, changes); }).catch(function (err) {
+    // Put back just what this change touched, leaving any later changes alone.
     var i = indexOfId(state.houses, id);
-    if (i >= 0) state.houses[i] = h;
+    if (i >= 0) {
+      var restored = Object.assign({}, state.houses[i]);
+      Object.keys(changes).forEach(function (k) { restored[k] = before[k]; });
+      state.houses[i] = restored;
+    }
     render();
     handleError(err, failPrefix);
   }).then(function () { setPending(-1); });
@@ -420,9 +489,9 @@ function moveHouse(id, status, isUndo) {
 
 // Tapping the active rating again clears it back to neutral.
 function rateNote(id, key, value) {
-  var ratings = ratingsOf(findHouse(id));
-  if (ratings[key] === value) delete ratings[key]; else ratings[key] = value;
-  quickChange(id, { ratings: Object.keys(ratings).length ? JSON.stringify(ratings) : '' }, 'Rating not saved');
+  var patch = {};
+  patch[key] = ratingsOf(findHouse(id))[key] === value ? null : value;
+  quickChange(id, { ratings: patch }, 'Rating not saved');
 }
 
 // ---------- wiring ----------

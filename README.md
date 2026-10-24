@@ -46,12 +46,50 @@ update check is skipped.
 Open the site, enter the password once (it's remembered), then **Share → Add to Home Screen**
 so it opens like an app.
 
+### 6. Turn on hourly backups
+Reload the spreadsheet; a **House Hunt** menu appears. Choose **Turn on hourly backups** and
+authorise it (it asks to run on a timer).
+
 ## Changing the backend script later
-After editing the script, use **Deploy → Manage deployments → Edit → Version: New version**.
-That keeps the same URL. A *new deployment* gives a new URL, which would then need to go in `config.js`.
+1. Paste the new `apps-script/Code.gs` over the old code in the Apps Script editor and save.
+2. **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy.** This keeps the same URL.
+   (*New deployment* would give a new URL, which would then need to go in `config.js`.)
+3. Check it took: open the web app URL in a browser. It should say
+   `House Hunt API version N is running.` with the `VERSION` from `Code.gs`.
+
+The site shows a red warning if the deployed script is older than it needs (`MIN_API_VERSION` in
+`app.js`), and the script keeps answering older copies of the app, so update the script first, then
+push the site.
+
+## Backups and restoring
+The script keeps snapshots of all three tabs in a hidden **Backups** tab, newest first: one an hour
+when anything has changed, kept for a week. From the **House Hunt** menu in the spreadsheet:
+- **Back up now** takes a snapshot straight away.
+- **Restore selected backup…**: show the tab (**View → Hidden sheets → Backups**), click any cell
+  in the row you want, then choose this. The current data is backed up first, so a restore can be
+  undone the same way.
+
+The spreadsheet's own **File → Version history** works too, as a second safety net.
+
+## Tests
+```sh
+npm install
+npx playwright install chromium webkit   # once
+npm test
+```
+- `tests/backend.test.js` runs the real `Code.gs` against an in-memory spreadsheet
+  (`tests/sheet-mock.js`) that interprets input the way Sheets does (formulas, dates, numbers).
+- `tests/e2e/` drives the site in WebKit (iPad, iPhone) and Chromium (Android) against that backend,
+  including slow and failing connections and two devices editing at once.
+- `tests/compat.test.js` keeps the code to what older iPads support (ES2017, no flexbox `gap`, …).
+
+Test data is made up; the repo is public, so real house data never goes in it. GitHub runs the tests
+on every push and only publishes the site if they pass.
 
 ## Notes
-- If two people edit the same house at the same moment, the last save wins. The list refreshes when
-  the app is reopened, and with the ⟳ button.
+- Saves send only what changed, and the script merges them into the row, so two people editing
+  different parts of the same house don't overwrite each other. (If both edit the *same* note at the
+  same moment, the later save wins.) The list refreshes when the app is reopened, and with ⟳.
+- Text is stored exactly as typed: the script writes it as plain text, so phone numbers keep their
+  leading 0 and nothing turns into a date or formula.
 - To change the password, edit the `PASSWORD` script property. Each device will ask for the new password.
-- Backups: the spreadsheet's version history (**File → Version history**) works as usual.
