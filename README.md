@@ -61,6 +61,21 @@ The site shows a red warning if the deployed script is older than it needs (`MIN
 `app.js`), and the script keeps answering older copies of the app, so update the script first, then
 push the site.
 
+## Listing photos and locations
+The script reads each house's listing page for its main photo and map position, and stores them in
+columns M–Q (Photo, Latitude, Longitude, Location accuracy, Listing checked):
+- **Rightmove** pages give the agent's main photo and the exact pin.
+- **Other sites:** the photo the page offers for link previews (`og:image`).
+- **No position from the page:** the Location text is looked up instead, marked *approximate*.
+
+A new house, or one whose link changes, is read straight after saving (its photo appears a few
+seconds later). The hourly run reads up to 20 houses that still need it, and retries failed pages a
+day later. To read everything at once, use **House Hunt → Fill in photos & locations now** in the
+spreadsheet. If a listing is taken down and its photo stops loading, the card simply hides it.
+
+Reading pages needs one extra permission (fetching web pages), so Google asks you to authorise again
+the first time you deploy this version or use that menu item.
+
 ## Backups and restoring
 The script keeps snapshots of all three tabs in a hidden **Backups** tab, newest first: one an hour
 when anything has changed, kept for a week. From the **House Hunt** menu in the spreadsheet:
@@ -79,6 +94,7 @@ npm test
 ```
 - `tests/backend.test.js` runs the real `Code.gs` against an in-memory spreadsheet
   (`tests/sheet-mock.js`) that interprets input the way Sheets does (formulas, dates, numbers).
+  Listing pages come from `tests/rightmove-page.js`, which builds made-up pages in Rightmove's format.
 - `tests/e2e/` drives the site in WebKit (iPad, iPhone) and Chromium (Android) against that backend,
   including slow and failing connections and two devices editing at once.
 - `tests/compat.test.js` keeps the code to what older iPads support (ES2017, no flexbox `gap`, …).

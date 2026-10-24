@@ -162,7 +162,33 @@ class MockSpreadsheet {
   insertSheet(name) { return this.addSheet(name); }
 }
 
-function makeServices(ss, { password, triggers, alerts, activeRow }) {
+// What the web looks like to the script: `pages` maps a URL to {code, body}
+// (anything else is a 404); `places` maps a Location to {lat, lng}.
+function makeWeb() {
+  const web = { pages: {}, places: {}, fetched: [] };
+  const respond = (url) => {
+    web.fetched.push(url);
+    const page = web.pages[url] || { code: 404, body: 'Not found' };
+    if (page.throws) throw new Error(page.throws);
+    return { getResponseCode: () => page.code, getContentText: () => page.body };
+  };
+  web.UrlFetchApp = {
+    fetch: (url) => respond(url),
+    fetchAll: (requests) => requests.map((r) => respond(r.url)),
+  };
+  web.Maps = {
+    newGeocoder: () => ({
+      setRegion() { return this; },
+      geocode(address) {
+        const hit = web.places[address.replace(/, UK$/, '')];
+        return hit ? { status: 'OK', results: [{ geometry: { location: hit } }] } : { status: 'ZERO_RESULTS', results: [] };
+      },
+    }),
+  };
+  return web;
+}
+
+function makeServices(ss, { password, triggers, alerts, web }) {
   const ui = {
     createMenu: () => ({ addItem() { return this; }, addSeparator() { return this; }, addToUi() {} }),
     alert: (...args) => { alerts.push(args[0]); return 'OK'; },
@@ -190,6 +216,9 @@ function makeServices(ss, { password, triggers, alerts, activeRow }) {
       MimeType: { JSON: 'json' },
       createTextOutput: (text) => ({ setMimeType() { return this; }, getContent: () => text }),
     },
+    UrlFetchApp: web.UrlFetchApp,
+    Maps: web.Maps,
+    console: { error() {}, log() {} },
     ScriptApp: {
       getProjectTriggers: () => triggers.map((name) => ({ getHandlerFunction: () => name })),
       newTrigger: (name) => ({ timeBased: () => ({ everyHours: () => ({ create: () => triggers.push(name) }) }) }),
@@ -203,8 +232,9 @@ function makeBackend({ password = 'secret' } = {}) {
   const ss = new MockSpreadsheet();
   const triggers = [];
   const alerts = [];
+  const web = makeWeb();
   function context() {
-    const ctx = vm.createContext(makeServices(ss, { password, triggers, alerts }));
+    const ctx = vm.createContext(makeServices(ss, { password, triggers, alerts, web }));
     script.runInContext(ctx);
     return ctx;
   }
@@ -212,6 +242,7 @@ function makeBackend({ password = 'secret' } = {}) {
     ss,
     triggers,
     alerts,
+    web,
     post(body) {
       const text = typeof body === 'string' ? body : JSON.stringify(body);
       return JSON.parse(context().doPost({ postData: { contents: text } }).getContent());

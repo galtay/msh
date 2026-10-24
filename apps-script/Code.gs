@@ -7,17 +7,20 @@
  *   - row 1 is headers; columns A–J are FIELDS in order
  *   - column K holds a unique ID per house, filled in automatically
  *   - column L holds the 👍/👎 ratings of each note, as JSON, e.g. {"shirley":"+","martin":"-"}
+ *   - columns M–Q hold what's read from the listing page: main photo, latitude,
+ *     longitude, how exact the location is, and when the listing was last read
  *   - a hidden "Backups" tab holds hourly snapshots (see the backups section)
  *
  * The password lives in Project Settings → Script properties as PASSWORD.
  *
  * @OnlyCurrentDoc  Limits the script's permission to this one spreadsheet,
- *                  rather than every spreadsheet in the owner's Drive.
+ *                  rather than every spreadsheet in the owner's Drive. (It can
+ *                  also fetch web pages, to read listing photos and locations.)
  */
 
 // Bump when this file changes. A plain GET of the web app URL shows it (no
 // password needed), and the app warns when the deployed script is too old.
-var VERSION = 3;
+var VERSION = 4;
 
 var TABS = {
   possible: 'house possibilities',
@@ -32,10 +35,16 @@ var PRICE_COL = FIELDS.indexOf('price') + 1;
 var PRICE_FORMAT = '"£"#,##0';
 var ID_COL = FIELDS.length + 1;
 var RATINGS_COL = ID_COL + 1;
-var LAST_COL = RATINGS_COL;
+var PHOTO_COL = RATINGS_COL + 1;
+var LAT_COL = PHOTO_COL + 1;
+var LNG_COL = LAT_COL + 1;
+var ACCURACY_COL = LNG_COL + 1;
+var CHECKED_COL = ACCURACY_COL + 1;
+var LAST_COL = CHECKED_COL;
 var HEADERS = ['House name', 'Location', 'Price', 'Link', 'Distance to Shrewsbury',
   'Distance to Ludlow', "Mum's initial thoughts", "Dad's initial thoughts",
-  'Actions taken and decision made', 'Estate agent contact', 'ID', 'Ratings'];
+  'Actions taken and decision made', 'Estate agent contact', 'ID', 'Ratings',
+  'Photo', 'Latitude', 'Longitude', 'Location accuracy', 'Listing checked'];
 var MAX_TEXT = 10000; // per field; generous for notes, stops runaway input
 
 function doPost(e) {
@@ -62,6 +71,8 @@ function doPost(e) {
       case 'delete':
         withLock_(function () { delete_(req.id); });
         return json_({ ok: true });
+      case 'enrich': // read the photo and location from one house's listing now
+        return json_({ ok: true, house: enrichHouse_(req.id) });
       default:
         throw new Error('Unknown action: ' + req.action);
     }
@@ -107,6 +118,7 @@ function create_(house) {
   var row = FIELDS.map(function (f) { return cell_(f, house[f]); });
   row.push(Utilities.getUuid());
   row.push(mergeRatings_('', house.ratings));
+  while (row.length < LAST_COL) row.push(''); // photo, location etc. are read later
   var sheet = sheetFor_(status);
   var at = sheet.getLastRow() + 1;
   writeRows_(sheet, at, [row]);
@@ -132,9 +144,14 @@ function update_(id, changes) {
   var linkUrl = link && link.getLinkUrl();
   if (linkUrl) row[LINK_COL - 1] = linkUrl;
 
+  var oldLink = String(row[LINK_COL - 1]);
   FIELDS.forEach(function (f, c) {
     if (Object.prototype.hasOwnProperty.call(changes, f)) row[c] = changes[f];
   });
+  // A different listing: forget what was read from the old one.
+  if (String(row[LINK_COL - 1]) !== oldLink) {
+    for (var c = PHOTO_COL; c <= LAST_COL; c++) row[c - 1] = '';
+  }
   if (changes.ratings !== undefined) row[RATINGS_COL - 1] = mergeRatings_(row[RATINGS_COL - 1], changes.ratings);
   var out = toCells_(row);
 
@@ -173,12 +190,13 @@ function writeRows_(sheet, at, rows) {
   sheet.getRange(at, PRICE_COL, rows.length, 1).setNumberFormat(PRICE_FORMAT);
 }
 
-// A whole stored row back into writable cells: text is re-escaped, numbers
-// (e.g. prices) and the ID/ratings columns go back as they are.
+// A whole stored row back into writable cells: text is re-escaped (in every
+// column, so e.g. "2026-10-24 17:40 ok" can't turn into a date); numbers such
+// as prices go back as they are.
 function toCells_(row) {
   return row.map(function (v, i) {
-    if (i < FIELDS.length) return typeof v === 'string' ? cell_(FIELDS[i], v) : v;
-    return v === null || v === undefined ? '' : v;
+    if (v === null || v === undefined) return '';
+    return typeof v === 'string' ? cell_(FIELDS[i] || null, v) : v;
   });
 }
 
@@ -208,6 +226,11 @@ function toHouse_(displayRow, richLink, status) {
   var house = { id: displayRow[ID_COL - 1], status: status };
   FIELDS.forEach(function (f, c) { house[f] = displayRow[c]; });
   house.ratings = displayRow[RATINGS_COL - 1];
+  house.photo = displayRow[PHOTO_COL - 1];
+  house.lat = displayRow[LAT_COL - 1];
+  house.lng = displayRow[LNG_COL - 1];
+  house.accuracy = displayRow[ACCURACY_COL - 1];
+  house.checked = displayRow[CHECKED_COL - 1];
   var url = richLink && richLink.getLinkUrl();
   if (url) house.link = url;
   return house;
@@ -255,9 +278,11 @@ function ensureColumns_(sheet) {
   var have = sheet.getMaxColumns();
   if (have < LAST_COL) sheet.insertColumnsAfter(have, LAST_COL - have);
   var current = sheet.getRange(1, 1, 1, LAST_COL).getValues()[0];
-  if (current[ID_COL - 1] === '' || current[RATINGS_COL - 1] === '') {
-    sheet.getRange(1, ID_COL, 1, 2).setValues([[HEADERS[ID_COL - 1], HEADERS[RATINGS_COL - 1]]]);
+  var missing = false;
+  for (var c = ID_COL; c <= LAST_COL; c++) {
+    if (current[c - 1] === '') { current[c - 1] = HEADERS[c - 1]; missing = true; }
   }
+  if (missing) sheet.getRange(1, ID_COL, 1, LAST_COL - ID_COL + 1).setValues([current.slice(ID_COL - 1)]);
   return sheet;
 }
 
@@ -293,11 +318,18 @@ function onOpen() {
     .addItem('Restore selected backup…', 'restoreSelectedBackup')
     .addSeparator()
     .addItem('Turn on hourly backups', 'turnOnHourlyBackups')
+    .addItem('Fill in photos & locations now', 'fillListingInfoNow')
     .addToUi();
 }
 
-// Runs every hour once turned on. Skips the snapshot if nothing has changed.
+// Runs every hour once turned on: reads photos and locations for a few houses
+// that still need them, then takes a snapshot (skipped if nothing changed).
 function hourlyBackup() {
+  try {
+    enrichPending_(LISTING_BATCH);
+  } catch (e) {
+    console.error('Reading listings failed: ' + e); // never let this stop the backup
+  }
   withLock_(function () { backup_(false); });
 }
 
@@ -394,4 +426,196 @@ function backupTab_() {
     tab.hideSheet();
   }
   return tab;
+}
+
+// ---------- listing photos and locations ----------
+// Reads each house's listing page for its main photo and map position.
+// Rightmove pages carry both in window.__PAGE_MODEL (see rightmoveInfo_). For
+// other sites, the page's sharing image (og:image) is used. With no position
+// from the page, the Location text is looked up instead (approximate).
+// Pages are fetched outside the lock (it can take a few seconds), then each
+// house is found again by ID and only written if its link hasn't changed.
+
+var LISTING_BATCH = 20; // pages per run
+var RETRY_FAILED_HOURS = 24;
+
+function enrichHouse_(id) {
+  var found = locate_(id);
+  if (!found) throw new Error('That house is no longer in the sheet (deleted on another device?). Tap ⟳ to refresh.');
+  var job = jobFor_(found);
+  saveListingInfo_([job], readListings_([job]));
+  var again = locate_(id);
+  return readHouse_(again.sheet, again.row, again.status);
+}
+
+// Houses with a link or a location that haven't been read yet (or whose last
+// attempt failed a while ago), at most `limit`. Returns how many were done.
+function enrichPending_(limit) {
+  var jobs = [];
+  Object.keys(TABS).forEach(function (status) {
+    var sheet = sheetFor_(status);
+    var n = sheet.getLastRow() - 1;
+    if (n < 1) return;
+    var rows = sheet.getRange(2, 1, n, LAST_COL).getValues();
+    var links = sheet.getRange(2, LINK_COL, n, 1).getRichTextValues();
+    rows.forEach(function (row, i) {
+      if (jobs.length >= limit || !row[ID_COL - 1]) return;
+      if (!needsReading_(row[CHECKED_COL - 1])) return;
+      var url = (links[i][0] && links[i][0].getLinkUrl()) || String(row[LINK_COL - 1]);
+      if (!url.trim() && !String(row[1]).trim()) return;
+      jobs.push({ id: row[ID_COL - 1], url: url.trim(), location: String(row[1]).trim() });
+    });
+  });
+  if (jobs.length) saveListingInfo_(jobs, readListings_(jobs));
+  return jobs.length;
+}
+
+function fillListingInfoNow() {
+  var done = 0;
+  var started = Date.now();
+  // Apps Script stops a run after 6 minutes; stop well before.
+  while (Date.now() - started < 4 * 60 * 1000) {
+    var n = enrichPending_(LISTING_BATCH);
+    done += n;
+    if (n < LISTING_BATCH) break;
+  }
+  SpreadsheetApp.getUi().alert('Read the listings of ' + done + ' houses.');
+}
+
+function needsReading_(checked) {
+  var s = String(checked || '');
+  if (!s) return true;
+  if (s.indexOf('failed') < 0) return false;
+  var when = new Date(s.slice(0, 16).replace(' ', 'T'));
+  return isNaN(when) || Date.now() - when.getTime() > RETRY_FAILED_HOURS * 3600 * 1000;
+}
+
+function jobFor_(found) {
+  var range = found.sheet.getRange(found.row, 1, 1, LAST_COL);
+  var row = range.getValues()[0];
+  var rich = range.getCell(1, LINK_COL).getRichTextValue();
+  var url = (rich && rich.getLinkUrl()) || String(row[LINK_COL - 1]);
+  return { id: row[ID_COL - 1], url: url.trim(), location: String(row[1]).trim() };
+}
+
+// Fetches the pages (in parallel) and works out {photo, lat, lng, accuracy, result}.
+function readListings_(jobs) {
+  var withUrl = jobs.filter(function (j) { return /^https?:\/\//i.test(j.url); });
+  var responses = withUrl.length ? UrlFetchApp.fetchAll(withUrl.map(function (j) {
+    return { url: j.url, muteHttpExceptions: true, followRedirects: true };
+  })) : [];
+  return jobs.map(function (job) {
+    var info = { photo: '', lat: '', lng: '', accuracy: '', result: 'ok' };
+    var k = withUrl.indexOf(job);
+    if (k >= 0) {
+      var res = responses[k];
+      var code = res.getResponseCode();
+      if (code >= 200 && code < 300) {
+        var html = res.getContentText();
+        var page = rightmoveInfo_(html) || {};
+        info.photo = page.photo || shareImage_(html, job.url);
+        if (isFinite(page.lat) && isFinite(page.lng) && page.lat !== '' && page.lng !== '') {
+          info.lat = page.lat;
+          info.lng = page.lng;
+          info.accuracy = page.exact ? 'exact' : 'approximate';
+        }
+      } else {
+        info.result = 'failed: HTTP ' + code;
+      }
+    } else if (job.url) {
+      info.result = 'not a web link';
+    }
+    if (info.lat === '' && job.location) {
+      var place = geocode_(job.location);
+      if (place) { info.lat = place.lat; info.lng = place.lng; info.accuracy = 'approximate'; }
+    }
+    return info;
+  });
+}
+
+function saveListingInfo_(jobs, infos) {
+  var time = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  withLock_(function () {
+    jobs.forEach(function (job, i) {
+      var found = locate_(job.id);
+      if (!found || jobFor_(found).url !== job.url) return; // deleted, or link changed meanwhile
+      var info = infos[i];
+      found.sheet.getRange(found.row, PHOTO_COL, 1, LAST_COL - PHOTO_COL + 1).setValues([[
+        cell_(null, info.photo), cell_(null, info.lat), cell_(null, info.lng),
+        cell_(null, info.accuracy), cell_(null, time + ' ' + info.result),
+      ]]);
+    });
+  });
+}
+
+// Rightmove: window.__PAGE_MODEL = {"data": "<JSON of one flat array>", ...}.
+// Object values in that array are indexes into the same array; arr[0] is the
+// root, whose propertyData has `images` (ordered; each with ready-made sizes)
+// and `location` (latitude, longitude, pinType, circleRadiusOnMap).
+function rightmoveInfo_(html) {
+  try {
+    var at = html.indexOf('window.__PAGE_MODEL');
+    if (at < 0) return null;
+    var start = html.indexOf('{', at);
+    var end = matchingBrace_(html, start);
+    if (end < 0) return null;
+    var arr = JSON.parse(JSON.parse(html.slice(start, end + 1)).data);
+    var ref = function (i) { return typeof i === 'number' && i >= 0 && i < arr.length ? arr[i] : undefined; };
+    var property = ref(arr[0] && arr[0].propertyData);
+    if (!property) return null;
+    var first = ref((ref(property.images) || [])[0]);
+    var sizes = first ? ref(first.resizedImageUrls) || {} : {};
+    var location = ref(property.location) || {};
+    return {
+      photo: ref(sizes.size476x317) || (first && ref(first.url)) || '',
+      lat: ref(location.latitude),
+      lng: ref(location.longitude),
+      exact: ref(location.pinType) === 'ACCURATE_POINT' && !ref(location.circleRadiusOnMap),
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Index of the brace that closes the one at `start`, skipping braces in strings.
+function matchingBrace_(s, start) {
+  var depth = 0;
+  var inString = false;
+  for (var i = start; i < s.length; i++) {
+    var ch = s[i];
+    if (inString) {
+      if (ch === '\\') i++;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') {
+      inString = true;
+    } else if (ch === '{') {
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+// The image a page offers when its link is shared (og:image), as a full URL.
+function shareImage_(html, pageUrl) {
+  var tag = html.match(/<meta[^>]+property=["']og:image["'][^>]*>/i);
+  var content = tag && tag[0].match(/content=["']([^"']+)["']/i);
+  if (!content) return '';
+  var src = content[1].replace(/&amp;/g, '&');
+  if (/^https?:\/\//i.test(src)) return src;
+  var origin = pageUrl.match(/^https?:\/\/[^\/]+/i);
+  if (src.indexOf('//') === 0) return 'https:' + src;
+  return origin && src[0] === '/' ? origin[0] + src : '';
+}
+
+function geocode_(place) {
+  try {
+    var res = Maps.newGeocoder().setRegion('uk').geocode(place + ', UK');
+    var hit = res && res.status === 'OK' && res.results[0];
+    return hit ? { lat: hit.geometry.location.lat, lng: hit.geometry.location.lng } : null;
+  } catch (e) {
+    return null;
+  }
 }

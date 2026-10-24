@@ -510,3 +510,50 @@ test('listing links are matched however they were copied', async ({ page, app })
 });
 
 function textKeyNode(v) { return String(v).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+// ---------- listing photos and locations ----------
+
+const { rightmovePage, photoUrl } = require('../rightmove-page');
+const RM_LINK = 'https://www.rightmove.co.uk/properties/123456';
+
+function giveListing(backend, id) {
+  backend.post({ action: 'update', password: PASSWORD, id, changes: { link: RM_LINK } });
+  backend.web.pages[RM_LINK] = { code: 200, body: rightmovePage({ lat: 52.559692, lng: -2.475935 }) };
+  backend.post({ action: 'enrich', password: PASSWORD, id });
+}
+
+test('cards show the listing’s main photo, which opens the listing', async ({ app, backend }) => {
+  giveListing(backend, 'p1');
+  await app.open();
+  const photo = app.card('Bramble Cottage').locator('.photo');
+  await expect(photo).toHaveAttribute('href', RM_LINK);
+  await expect(photo.locator('img')).toHaveAttribute('src', photoUrl());
+  expect(await photo.locator('img').evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+  await expect(app.card('Old Mill House').locator('.photo')).toHaveCount(0);
+});
+
+test('the map link goes to the exact spot when the listing gave one', async ({ app, backend }) => {
+  giveListing(backend, 'p1');
+  await app.open();
+  await expect(app.card('Bramble Cottage').locator('a.fact')).toHaveAttribute('href', /query=52\.559692%2C-2\.475935$/);
+  await expect(app.card('Old Mill House').locator('a.fact')).toHaveAttribute('href', /query=Sampleton%2C%20UK$/);
+});
+
+test('a new house’s photo appears shortly after saving', async ({ page, app, backend }) => {
+  backend.web.pages['https://www.rightmove.co.uk/properties/777'] = { code: 200, body: rightmovePage({ id: 777 }) };
+  await app.open();
+  await page.click('#addBtn');
+  await page.fill('[name=name]', 'Photo Test');
+  await page.fill('[name=link]', 'https://www.rightmove.co.uk/properties/777');
+  await page.click('.panel-head button[type=submit]');
+  await expect(app.card('Photo Test').locator('.photo img')).toHaveAttribute('src', photoUrl(777));
+});
+
+test('a photo that no longer loads is hidden, not shown broken', async ({ app, backend }) => {
+  giveListing(backend, 'p1');
+  const sheet = backend.ss.getSheetByName('House Possibilities');
+  sheet.getRange(2, 13).setValue("'https://media.rightmove.co.uk/property-photo/missing.jpeg");
+  await app.open();
+  await expect(app.card('Bramble Cottage').locator('.photo')).toBeHidden();
+  await expect(app.card('Bramble Cottage').locator('h3')).toBeVisible();
+});

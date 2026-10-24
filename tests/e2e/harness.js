@@ -12,7 +12,13 @@ function makeNet() {
   return { delay: 0, failures: [], requests: [] };
 }
 
+// A tiny valid PNG, served for listing photos so tests never touch Rightmove.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+
 async function connect(target, backend, net) {
+  await target.route('https://media.rightmove.co.uk/**', (r) => (/missing/.test(r.request().url())
+    ? r.fulfill({ status: 404, body: '' })
+    : r.fulfill({ contentType: 'image/png', body: PNG })));
   await target.route('**/config.js*', (r) => r.fulfill({
     contentType: 'text/javascript', body: `window.MSH_API_URL = '${API}';`,
   }));

@@ -12,7 +12,7 @@ var FIELDS = ['name', 'location', 'price', 'link', 'distShrewsbury',
 var SORTS = ['newest', 'sheet', 'priceAsc', 'priceDesc', 'shrewsbury'];
 
 // The oldest apps-script/Code.gs (its VERSION) this app works with.
-var MIN_API_VERSION = 3;
+var MIN_API_VERSION = 4;
 
 var API_URL = (window.MSH_API_URL || '').trim();
 var DEMO = !API_URL;
@@ -74,6 +74,11 @@ var localStore = {
     this.write(this.load().filter(function (h) { return h.id !== id; }));
     return Promise.resolve();
   },
+  // Demo mode can't read listing pages.
+  enrich: function (id) {
+    var houses = this.load();
+    return Promise.resolve(houses[indexOfId(houses, id)] || null);
+  },
 };
 
 function AuthError(message) { this.message = message; }
@@ -120,6 +125,8 @@ var remoteStore = {
     return (await this.call({ action: 'update', id: id, changes: changes })).house;
   },
   remove: async function (id) { await this.call({ action: 'delete', id: id }); },
+  // Reads the listing page's photo and position (takes a few seconds).
+  enrich: async function (id) { return (await this.call({ action: 'enrich', id: id })).house; },
 };
 
 var OUTDATED_SCRIPT = 'the Google Sheet’s script is out of date and needs redeploying (see README)';
@@ -158,8 +165,10 @@ function safeUrl(u) {
   return /^https?:\/\//i.test(s) ? s : '';
 }
 
-function mapsUrl(location) {
-  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(location + ', UK');
+// The exact spot when the listing gave one, otherwise a search for the place.
+function mapsUrl(h) {
+  var where = filled(h.lat) && filled(h.lng) ? h.lat + ',' + h.lng : h.location + ', UK';
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(where);
 }
 
 // Optional action, e.g. toast('Moved', 'Undo', fn), adds a button and stays up longer.
@@ -284,6 +293,15 @@ function moveButtons(h) {
   }).join('');
 }
 
+// The listing's main photo; tapping it opens the listing.
+function photoHtml(h, link) {
+  var src = safeUrl(h.photo);
+  if (!src) return '';
+  var img = '<img src="' + esc(src) + '" alt="" loading="lazy" width="476" height="317">';
+  return link ? '<a class="photo" href="' + esc(link) + '" target="_blank" rel="noopener">' + img + '</a>'
+    : '<div class="photo">' + img + '</div>';
+}
+
 var TRACKED = ['price', 'location', 'distShrewsbury', 'link'].concat(NOTES.map(function (n) { return n.key; }));
 
 function cardHtml(h) {
@@ -291,6 +309,7 @@ function cardHtml(h) {
   var todo = TRACKED.filter(function (f) { return !filled(h[f]); }).length;
   var emptyNotes = NOTES.filter(function (n) { return !filled(h[n.key]); });
   return '<article class="card" data-id="' + esc(h.id) + '" tabindex="0">' +
+    photoHtml(h, link) +
     '<div class="card-top">' +
       '<h3>' + (esc(h.name) || '<i>Unnamed</i>') + '</h3>' +
       (filled(h.price) ? '<span class="price">' + esc(formatPrice(h.price)) + '</span>'
@@ -298,7 +317,7 @@ function cardHtml(h) {
     '</div>' +
     (todo ? '<div class="todo">' + todo + (todo === 1 ? ' detail' : ' details') + ' to fill in</div>' : '') +
     '<div class="facts">' +
-      (filled(h.location) ? '<a class="fact" href="' + mapsUrl(h.location) +
+      (filled(h.location) ? '<a class="fact" href="' + mapsUrl(h) +
         '" target="_blank" rel="noopener">📍 ' + esc(h.location) + '</a>' : missing('location', 'location')) +
       (filled(h.distShrewsbury) ? '<span class="fact">🚗 ' + esc(h.distShrewsbury) + ' to Shrewsbury</span>'
         : missing('distShrewsbury', 'distance')) +
@@ -493,6 +512,9 @@ async function saveFromForm(opts) {
     var saved = tidy(original ? await store.update(original.id, changes) : await store.create(changes));
     var i = indexOfId(state.houses, saved.id);
     if (i >= 0) state.houses[i] = saved; else state.houses.push(saved);
+    if ((!original || 'link' in changes || 'location' in changes) && (saved.link || saved.location)) {
+      readListingInBackground(saved.id);
+    }
     state.status = saved.status;
     localSet('msh.tab', state.status);
     showPanel('#editPanel', false); // only close once it's safely stored
@@ -503,6 +525,20 @@ async function saveFromForm(opts) {
   } finally {
     saving = false;
   }
+}
+
+// Fetching the listing takes a few seconds, so it happens after the save; the
+// photo appears when it's done. If it fails, the hourly run tries again.
+var LISTING_KEYS = ['photo', 'lat', 'lng', 'accuracy', 'checked'];
+function readListingInBackground(id) {
+  store.enrich(id).then(function (fresh) {
+    var i = indexOfId(state.houses, id);
+    if (i < 0 || !fresh) return;
+    var h = Object.assign({}, state.houses[i]);
+    LISTING_KEYS.forEach(function (k) { h[k] = fresh[k]; });
+    state.houses[i] = h;
+    render();
+  }).catch(function () { /* not urgent */ });
 }
 
 async function deleteCurrent() {
@@ -599,6 +635,12 @@ $('#list').addEventListener('click', function (e) {
   else if (rate) rateNote(card.getAttribute('data-id'), rate.getAttribute('data-key'), rate.getAttribute('data-rate'));
   else openEditor(findHouse(card.getAttribute('data-id')), fill && fill.getAttribute('data-fill'));
 });
+
+// A photo that won't load (e.g. the listing was taken down) is hidden, not shown broken.
+$('#list').addEventListener('error', function (e) {
+  var photo = e.target.tagName === 'IMG' && e.target.parentNode;
+  if (photo && photo.classList.contains('photo')) photo.hidden = true;
+}, true);
 
 $('#addBtn').addEventListener('click', function () { openEditor(null); });
 $('#refreshBtn').addEventListener('click', function () { refresh('tap'); });

@@ -4,6 +4,9 @@ Ideas we've discussed but not built yet. Newest at the top.
 
 ## Satellite view on each card
 
+> **Coordinates are done.** Columns N–P hold latitude, longitude and accuracy, read from the listing
+> (or looked up from the Location text). What's left is the imagery decision and the card image.
+
 **Why:** Martin and Shirley want a nice view and fields nearby. A satellite image centred on the
 house shows the housing density and the open land around it at a glance.
 
