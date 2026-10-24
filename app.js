@@ -290,7 +290,8 @@ function tidy(h) {
 }
 
 // In the order a house moves through them (and the order of the tabs).
-var GROUPS = { possible: 'Possibilities', priority: 'Priority', visited: 'Visited', rejected: 'Rejected' };
+// "priority" is shown as Schedule/d (its sheet tab is still called priority).
+var GROUPS = { possible: 'Possibilities', priority: 'Schedule/d', visited: 'Visited', rejected: 'Rejected' };
 
 function moveButtons(h) {
   return Object.keys(GROUPS).filter(function (g) { return g !== h.status; }).map(function (g) {
@@ -348,17 +349,18 @@ function render() {
       return h.status === b.getAttribute('data-status');
     }).length;
   });
-  fitTabs();
   var list = visibleHouses();
   $('#list').innerHTML = list.length
     ? list.map(cardHtml).join('')
     : '<div class="empty">' + (state.query ? 'No matches.' : 'Nothing here yet.') + '</div>';
+  fitLabels();
 }
 
-// Four tabs share a narrow screen; if a label doesn't fit (a wider font, or
-// large text turned on), shrink that label's text a little until it does.
-function fitTabs() {
-  $$('.tabs button').forEach(function (b) {
+// Tabs and move buttons share narrow rows; if a label doesn't fit (a narrow
+// screen, a wider font, or large text turned on), shrink just that label's
+// text a little until it does.
+function fitLabels() {
+  $$('.tabs button, .move-btn').forEach(function (b) {
     b.style.fontSize = '';
     var size = parseFloat(getComputedStyle(b).fontSize);
     while (b.scrollWidth > b.clientWidth + 1 && size > 9) {
@@ -367,7 +369,7 @@ function fitTabs() {
     }
   });
 }
-window.addEventListener('resize', fitTabs);
+window.addEventListener('resize', fitLabels);
 
 // ---------- data flow ----------
 

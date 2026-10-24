@@ -583,18 +583,18 @@ test('prices with wording show it small, and still sort by amount', async ({ pag
 
 // ---------- Priority ----------
 
-test('the tabs run Possibilities, Priority, Visited, Rejected', async ({ page, app }) => {
+test('the tabs run Possibilities, Schedule/d, Visited, Rejected', async ({ page, app }) => {
   await app.open();
   const tabs = await page.locator('.tabs button').evaluateAll((b) => b.map((x) => x.firstChild.textContent.trim()));
-  expect(tabs).toEqual(['Possibilities', 'Priority', 'Visited', 'Rejected']);
+  expect(tabs).toEqual(['Possibilities', 'Schedule/d', 'Visited', 'Rejected']);
 });
 
-test('promote a possibility to Priority, then on to Visited', async ({ page, app, backend }) => {
+test('promote a possibility to Schedule/d, then on to Visited', async ({ page, app, backend }) => {
   await app.open();
   const moves = await app.card('Bramble Cottage').locator('.move-btn').allTextContents();
-  expect(moves).toEqual(['Priority', 'Visited', 'Rejected']);
+  expect(moves).toEqual(['Schedule/d', 'Visited', 'Rejected']);
   await app.card('Bramble Cottage').locator('[data-move=priority]').click();
-  await expect(page.locator('#toast')).toContainText('Moved to Priority');
+  await expect(page.locator('#toast')).toContainText('Moved to Schedule/d');
   await app.saved();
   expect(house(backend, 'p1').status).toBe('priority');
   expect(await app.count('priority')).toBe(1);
@@ -608,7 +608,7 @@ test('promote a possibility to Priority, then on to Visited', async ({ page, app
   expect(backend.ss.getSheetByName('priority').displayRows()).toHaveLength(1); // just the header
 });
 
-test('Priority can be chosen in the form too', async ({ page, app, backend }) => {
+test('Schedule/d can be chosen in the form too', async ({ page, app, backend }) => {
   await app.open();
   await app.card('Old Mill House').locator('h3').click();
   await page.selectOption('[name=status]', 'priority');
