@@ -128,7 +128,7 @@ function sheetFor_(status) {
   }
   var sheet = ss.insertSheet(TABS[status]);
   sheet.appendRow(['House name', 'Location', 'Price', 'Link', 'Distance to Shrewsbury',
-    'Distance to Ludlow', "Shirley's initial thoughts", "Dad's initial thoughts",
+    'Distance to Ludlow', "Mum's initial thoughts", "Dad's initial thoughts",
     'Actions taken and decision made', 'Estate agent contact', 'ID']);
   return sheet;
 }

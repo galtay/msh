@@ -75,7 +75,7 @@ button { -webkit-appearance: none; }
 }
 .tabs button:last-child { margin-right: 0; }
 .tabs button.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.count { opacity: 0.6; font-weight: 500; }
+.count { display: block; opacity: 0.6; font-weight: 500; font-size: 13px; }
 
 .toolbar { display: flex; padding: 12px 16px; }
 .toolbar input, .toolbar select {

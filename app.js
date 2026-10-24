@@ -177,19 +177,26 @@ function note(label, text) {
   return '<p class="note clip"><b>' + label + ':</b> ' + esc(text) + '</p>';
 }
 
+// "nearest" (from the original sheet) means closest town, with no time recorded.
+function distChip(town, value) {
+  var v = str(value).trim();
+  if (!v) return '';
+  var label = v.toLowerCase() === 'nearest' ? 'Nearest ' + town : town + ' ' + v;
+  return '<span class="chip">' + esc(label) + '</span>';
+}
+
 function cardHtml(h) {
   var link = safeUrl(h.link);
   var chips = '';
-  if (h.distShrewsbury) chips += '<span class="chip">Shrewsbury ' + esc(h.distShrewsbury) + '</span>';
-  if (h.distLudlow) chips += '<span class="chip">Ludlow ' + esc(h.distLudlow) + '</span>';
+  chips += distChip('Shrewsbury', h.distShrewsbury) + distChip('Ludlow', h.distLudlow);
   return '<article class="card" data-id="' + esc(h.id) + '" tabindex="0">' +
     '<div class="card-top"><h3>' + (esc(h.name) || '<i>Unnamed</i>') + '</h3>' +
     '<span class="price">' + esc(formatPrice(h.price)) + '</span></div>' +
     (h.location ? '<div class="loc">📍 <a href="' + mapsUrl(h.location) +
       '" target="_blank" rel="noopener">' + esc(h.location) + '</a></div>' : '') +
     (chips ? '<div class="chips">' + chips + '</div>' : '') +
-    note('Shirley', h.shirley) +
-    note('Martin', h.martin) +
+    note('Mum', h.shirley) +
+    note('Dad', h.martin) +
     note('Actions', h.actions) +
     (link ? '<div class="card-actions"><a href="' + esc(link) +
       '" target="_blank" rel="noopener">View listing ↗</a></div>' : '') +
