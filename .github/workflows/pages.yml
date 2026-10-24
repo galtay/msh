@@ -1,0 +1,38 @@
+# Publishes the site to GitHub Pages, stamping the commit into every
+# __VERSION__ placeholder so browsers fetch fresh files and open copies
+# of the app can notice they're out of date (see checkForUpdate in app.js).
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stamp version
+        run: |
+          VERSION="${GITHUB_SHA::8}"
+          grep -rl --exclude-dir=.git --exclude-dir=.github __VERSION__ . | xargs sed -i "s/__VERSION__/$VERSION/g"
+          cat version.json
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4

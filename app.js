@@ -399,9 +399,41 @@ $('#logoutBtn').addEventListener('click', function () {
 
 // Pick up changes made on another device when the app comes back into view.
 document.addEventListener('visibilitychange', function () {
-  if (document.visibilityState === 'visible' && !DEMO && localGet('msh.password')) refresh('background');
+  if (document.visibilityState !== 'visible') return;
+  checkForUpdate();
+  if (!DEMO && localGet('msh.password')) refresh('background');
 });
+
+// ---------- updates ----------
+// The deploy workflow stamps every release's version into this file, index.html
+// (as ?v= on each asset) and version.json. If version.json has moved on, this
+// copy of the app is stale, so load the page again under a fresh URL, which
+// gets past the 10-minute cache GitHub Pages asks browsers to use.
+
+var APP_VERSION = '__VERSION__';
+
+async function checkForUpdate() {
+  if (APP_VERSION.indexOf('__') === 0) return; // running locally, not deployed
+  if (!$('#editPanel').hidden || saving) return; // don't throw away someone's typing
+  try {
+    var res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    var latest = (await res.json()).version;
+    if (!latest || latest === APP_VERSION) return;
+    // Guard against a reload loop if the new page is somehow still the old one.
+    if (sessionStorageGet('msh.reloadedFor') === latest) return;
+    sessionStorageSet('msh.reloadedFor', latest);
+    location.replace(location.pathname + '?v=' + latest);
+  } catch (e) { /* offline: try again next time */ }
+}
+
+function sessionStorageGet(key) {
+  try { return sessionStorage.getItem(key); } catch (e) { return null; }
+}
+function sessionStorageSet(key, value) {
+  try { sessionStorage.setItem(key, value); } catch (e) { /* ignore */ }
+}
 
 render();
 if (!DEMO && !localGet('msh.password')) showLogin();
 else refresh('load');
+checkForUpdate();
