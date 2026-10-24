@@ -219,10 +219,11 @@ function noteBlock(h, n) {
     '<div class="field-text clip">' + esc(h[n.key]) + '</div></div>';
 }
 
-// "nearest" (from the original sheet) means closest town, with no time recorded.
-function distLabel(value) {
-  var v = str(value).trim();
-  return v.toLowerCase() === 'nearest' ? 'Nearest to Shrewsbury' : v + ' to Shrewsbury';
+// The original sheet sometimes recorded only the nearest town, with no time.
+// Treat that as not filled in, so it shows as "+ Add distance".
+function tidy(h) {
+  if (str(h.distShrewsbury).trim().toLowerCase() === 'nearest') h.distShrewsbury = '';
+  return h;
 }
 
 var GROUPS = { possible: 'Possibilities', visited: 'Visited', rejected: 'Rejected' };
@@ -249,7 +250,7 @@ function cardHtml(h) {
     '<div class="facts">' +
       (filled(h.location) ? '<a class="fact" href="' + mapsUrl(h.location) +
         '" target="_blank" rel="noopener">📍 ' + esc(h.location) + '</a>' : missing('location', 'location')) +
-      (filled(h.distShrewsbury) ? '<span class="fact">🚗 ' + esc(distLabel(h.distShrewsbury)) + '</span>'
+      (filled(h.distShrewsbury) ? '<span class="fact">🚗 ' + esc(h.distShrewsbury) + ' to Shrewsbury</span>'
         : missing('distShrewsbury', 'distance')) +
     '</div>' +
     NOTES.filter(function (n) { return filled(h[n.key]); }).map(function (n) { return noteBlock(h, n); }).join('') +
@@ -299,7 +300,7 @@ async function refresh(mode) {
   var btn = $('#refreshBtn');
   if (mode !== 'background') btn.classList.add('spinning');
   try {
-    state.houses = await store.list();
+    state.houses = (await store.list()).map(tidy);
     setBanner(DEMO ? 'Demo mode: houses are saved on this device only.' : '');
     render();
     if (mode === 'tap') toast('Up to date');
