@@ -46,6 +46,20 @@ test('newest first is the default; oldest first reverses it', async ({ page, app
   await expect(page.locator('.card h3').first()).toHaveText('Bramble Cottage');
 });
 
+test('one sort choice applies to every group', async ({ page, app, backend }) => {
+  backend.post({ action: 'create', password: PASSWORD, house: { name: 'Second Visit', status: 'visited' } });
+  await app.open();
+  await page.selectOption('#sort', 'sheet');
+  for (const [tab, first] of [['visited', 'Hilltop View'], ['rejected', 'Roadside Lodge'], ['possible', 'Bramble Cottage']]) {
+    await app.tab(tab);
+    await expect(page.locator('#sort')).toHaveValue('sheet');
+    await expect(page.locator('.card h3').first()).toHaveText(first);
+  }
+  await page.selectOption('#sort', 'newest');
+  await app.tab('visited');
+  await expect(page.locator('.card h3').first()).toHaveText('Second Visit');
+});
+
 test('missing details are highlighted and counted', async ({ app }) => {
   await app.open();
   const empty = app.card('No Details Barn');
