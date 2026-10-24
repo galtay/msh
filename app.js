@@ -184,10 +184,11 @@ function visibleHouses() {
   return list;
 }
 
-// The labelled note blocks on each card, in order.
+// The labelled note blocks on each card, in order. Only `rateable` ones get
+// 👍/👎 buttons and turn green/red; the rest stay neutral grey.
 var NOTES = [
-  { key: 'shirley', label: 'Mum’s thoughts', add: 'Mum’s thoughts' },
-  { key: 'martin', label: 'Dad’s thoughts', add: 'Dad’s thoughts' },
+  { key: 'shirley', label: 'Mum’s thoughts', add: 'Mum’s thoughts', rateable: true },
+  { key: 'martin', label: 'Dad’s thoughts', add: 'Dad’s thoughts', rateable: true },
   { key: 'actions', label: 'Actions & decision', add: 'actions' },
   { key: 'agent', label: 'Estate agent', add: 'estate agent' },
 ];
@@ -205,7 +206,7 @@ function ratingsOf(h) {
 }
 
 function noteBlock(h, n) {
-  var r = ratingsOf(h)[n.key];
+  var r = n.rateable ? ratingsOf(h)[n.key] : null;
   var mood = r === '+' ? 'pos' : r === '-' ? 'neg' : 'neutral';
   function rateBtn(value, icon, label) {
     return '<button type="button" class="rate' + (r === value ? ' on' : '') + '" data-rate="' + value +
@@ -213,7 +214,8 @@ function noteBlock(h, n) {
   }
   return '<div class="field ' + mood + '">' +
     '<div class="field-head"><div class="field-label">' + esc(n.label) + '</div>' +
-    '<div class="rates">' + rateBtn('+', '👍', 'Positive') + rateBtn('-', '👎', 'Negative') + '</div></div>' +
+    (n.rateable ? '<div class="rates">' + rateBtn('+', '👍', 'Positive') + rateBtn('-', '👎', 'Negative') + '</div>' : '') +
+    '</div>' +
     '<div class="field-text clip">' + esc(h[n.key]) + '</div></div>';
 }
 
