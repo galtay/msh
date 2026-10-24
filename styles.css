@@ -53,6 +53,7 @@ button { -webkit-appearance: none; }
 }
 .topbar h1 { font-size: 20px; margin: 0; font-weight: 650; }
 .topbar-actions { display: flex; align-items: center; }
+.saving-note { font-size: 13px; font-weight: 500; opacity: 0.8; margin-left: 6px; }
 .icon-btn {
   background: none; border: 0; color: inherit; font-size: 22px;
   min-width: 44px; height: 44px; border-radius: 22px; cursor: pointer; margin-left: 4px;

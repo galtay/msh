@@ -300,6 +300,7 @@ async function refresh(mode) {
   var btn = $('#refreshBtn');
   if (mode !== 'background') btn.classList.add('spinning');
   try {
+    await quickQueue; // let pending one-tap saves land first, or the list would undo them
     state.houses = (await store.list()).map(tidy);
     setBanner(DEMO ? 'Demo mode: houses are saved on this device only.' : '');
     render();
@@ -381,19 +382,32 @@ async function deleteCurrent() {
 // fails the house is put back. Saves are queued so they reach the sheet in
 // order, e.g. a quick Undo can't arrive before the move it undoes.
 var quickQueue = Promise.resolve();
+var pendingSaves = 0;
 function quickChange(id, changes, failPrefix) {
   var h = findHouse(id);
   if (!h) return;
   var updated = Object.assign({}, h, changes);
   state.houses[indexOfId(state.houses, id)] = updated;
   render();
+  setPending(1);
   quickQueue = quickQueue.then(function () { return store.save(updated); }).catch(function (err) {
     var i = indexOfId(state.houses, id);
     if (i >= 0) state.houses[i] = h;
     render();
     handleError(err, failPrefix);
-  });
+  }).then(function () { setPending(-1); });
 }
+
+// Show "Saving…" in the header while one-tap changes are on their way to the sheet.
+function setPending(delta) {
+  pendingSaves += delta;
+  $('#savingNote').hidden = pendingSaves === 0;
+}
+
+// Warn before leaving or reloading with changes not yet saved (browsers show their own wording).
+window.addEventListener('beforeunload', function (e) {
+  if (pendingSaves > 0) { e.preventDefault(); e.returnValue = ''; }
+});
 
 function moveHouse(id, status, isUndo) {
   var h = findHouse(id);

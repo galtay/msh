@@ -50,8 +50,12 @@ function doPost(e) {
   }
 }
 
+// Bump when this file changes, so a plain GET of the web app URL shows
+// whether the latest code has been deployed (no password needed).
+var VERSION = 2;
+
 function doGet() {
-  return ContentService.createTextOutput('House Hunt API is running.');
+  return ContentService.createTextOutput('House Hunt API version ' + VERSION + ' is running.');
 }
 
 // ---------- operations ----------
