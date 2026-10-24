@@ -12,7 +12,7 @@ var FIELDS = ['name', 'location', 'price', 'link', 'distShrewsbury',
 var SORTS = ['newest', 'sheet', 'priceAsc', 'priceDesc', 'shrewsbury'];
 
 // The oldest apps-script/Code.gs (its VERSION) this app works with.
-var MIN_API_VERSION = 4;
+var MIN_API_VERSION = 5;
 
 var API_URL = (window.MSH_API_URL || '').trim();
 var DEMO = !API_URL;
@@ -289,11 +289,12 @@ function tidy(h) {
   return h;
 }
 
-var GROUPS = { possible: 'Possibilities', visited: 'Visited', rejected: 'Rejected' };
+// In the order a house moves through them (and the order of the tabs).
+var GROUPS = { possible: 'Possibilities', priority: 'Priority', visited: 'Visited', rejected: 'Rejected' };
 
 function moveButtons(h) {
   return Object.keys(GROUPS).filter(function (g) { return g !== h.status; }).map(function (g) {
-    return '<button type="button" class="move-btn" data-move="' + g + '">→ ' + GROUPS[g] + '</button>';
+    return '<button type="button" class="move-btn" data-move="' + g + '">' + GROUPS[g] + '</button>';
   }).join('');
 }
 
@@ -321,19 +322,19 @@ function cardHtml(h) {
     '</div>' +
     (todo ? '<div class="todo">' + todo + (todo === 1 ? ' detail' : ' details') + ' to fill in</div>' : '') +
     '<div class="facts">' +
-      (filled(h.location) ? '<a class="fact" href="' + mapsUrl(h) +
+      (filled(h.location) ? '<a class="fact place" href="' + mapsUrl(h) +
         '" target="_blank" rel="noopener">📍 ' + esc(h.location) + '</a>' : missing('location', 'location')) +
       (filled(h.distShrewsbury) ? '<span class="fact">🚗 ' + esc(h.distShrewsbury) + ' to Shrewsbury</span>'
         : missing('distShrewsbury', 'distance')) +
+      (link ? '<a class="fact listing" href="' + esc(link) + '" target="_blank" rel="noopener">🔗 Listing ↗</a>'
+        : missing('link', 'link')) +
     '</div>' +
     NOTES.filter(function (n) { return filled(h[n.key]); }).map(function (n) { return noteBlock(h, n); }).join('') +
     (emptyNotes.length ? '<div class="missing-row">' + emptyNotes.map(function (n) {
       return missing(n.key, n.add);
     }).join('') + '</div>' : '') +
-    '<div class="card-actions">' +
-      (link ? '<a class="listing" href="' + esc(link) + '" target="_blank" rel="noopener">Listing ↗</a>'
-        : missing('link', 'link')) +
-      moveButtons(h) +
+    '<div class="card-actions"><span class="move-label">Move to</span>' +
+      '<div class="move-row">' + moveButtons(h) + '</div>' +
     '</div>' +
     '</article>';
 }

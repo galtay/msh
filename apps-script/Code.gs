@@ -3,7 +3,8 @@
  * spreadsheet that stores the data, then deploy as a web app (see README).
  *
  * Storage layout (matches the original family sheet, so its data imports as-is):
- *   - one tab per list, named as in TABS below (matched ignoring case/spaces)
+ *   - one tab per group, named as in TABS below (matched ignoring case/spaces);
+ *     a missing tab (e.g. Priority, added later) is created with headers
  *   - row 1 is headers; columns A–J are FIELDS in order
  *   - column K holds a unique ID per house, filled in automatically
  *   - column L holds the 👍/👎 ratings of each note, as JSON, e.g. {"shirley":"+","martin":"-"}
@@ -20,10 +21,11 @@
 
 // Bump when this file changes. A plain GET of the web app URL shows it (no
 // password needed), and the app warns when the deployed script is too old.
-var VERSION = 4;
+var VERSION = 5;
 
 var TABS = {
   possible: 'house possibilities',
+  priority: 'priority',
   visited: 'visited',
   rejected: 'rejected no visit',
 };

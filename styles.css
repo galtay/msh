@@ -68,9 +68,11 @@ button { -webkit-appearance: none; }
 .tabs, .toolbar, .list, .banner { max-width: 900px; margin-left: auto; margin-right: auto; }
 .tabs { display: flex; padding: 12px 16px 0; }
 .tabs button {
-  flex: 1; min-height: 44px; border: 1px solid var(--line); background: var(--card);
-  border-radius: 12px; font-weight: 600; cursor: pointer; padding: 6px 4px; margin-right: 6px;
+  flex: 1; min-width: 0; min-height: 44px; border: 1px solid var(--line); background: var(--card);
+  border-radius: 12px; font-weight: 600; cursor: pointer; padding: 6px 2px; margin-right: 6px;
 }
+@media (max-width: 480px) { .tabs button { font-size: 13.5px; margin-right: 4px; } }
+@media (max-width: 370px) { .tabs button { font-size: 11.5px; padding: 6px 0; } .tabs { padding-left: 12px; padding-right: 12px; } }
 .tabs button:last-child { margin-right: 0; }
 .tabs button.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .count { display: block; opacity: 0.6; font-weight: 500; font-size: 13px; }
@@ -154,14 +156,16 @@ a.fact { text-decoration: underline; -webkit-text-decoration-color: var(--muted)
 }
 .missing:active { background: #ffefc2; }
 
-.card-actions { padding-top: 2px; }
-.card-actions a, .card-actions .missing, .move-btn {
-  display: inline-block; width: auto; line-height: 36px; padding: 0 11px; margin: 0 6px 8px 0;
-  border-radius: 10px; border: 1px solid var(--line); text-decoration: none; background: none;
-  color: var(--accent); font-weight: 600; font-size: 14px; cursor: pointer;
+.fact.listing { color: var(--accent); font-weight: 600; }
+.card-actions { padding: 2px 0 8px; }
+.move-label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+.move-row { display: flex; }
+.move-btn {
+  flex: 1; min-width: 0; line-height: 38px; padding: 0 4px; margin-right: 6px;
+  border-radius: 10px; border: 1px solid var(--chip); background: var(--chip); color: var(--ink);
+  font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.card-actions .missing { border: 1.5px dashed var(--todo-line); background: var(--todo-bg); color: var(--todo); }
-.move-btn { color: var(--ink); background: var(--chip); border-color: var(--chip); }
+.move-btn:last-child { margin-right: 0; }
 .empty { text-align: center; color: var(--muted); padding: 48px 16px; grid-column: 1 / -1; }
 
 .fab {

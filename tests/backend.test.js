@@ -20,7 +20,7 @@ test('rejects a wrong or missing password without returning data', () => {
 });
 
 test('GET reports the script version', () => {
-  assert.match(makeBackend().get(), /^House Hunt API version 4 is running\.$/);
+  assert.match(makeBackend().get(), /^House Hunt API version 5 is running\.$/);
 });
 
 test('bad requests come back as errors, not crashes', () => {
@@ -35,7 +35,7 @@ test('bad requests come back as errors, not crashes', () => {
 test('list returns every house with its group, version and display values', () => {
   const res = list(setup());
   assert.equal(res.ok, true);
-  assert.equal(res.version, 4);
+  assert.equal(res.version, 5);
   assert.deepEqual(res.houses.map((h) => `${h.id}:${h.status}`),
     ['p1:possible', 'p2:possible', 'p3:possible', 'v1:visited', 'r1:rejected']);
   const p1 = res.houses[0];
@@ -227,7 +227,7 @@ test('creates missing house tabs with headers', () => {
   const b = makeBackend({ password: PW });
   assert.deepEqual(list(b).houses, []);
   assert.deepEqual(b.ss.getSheets().map((s) => s.getName()),
-    ['house possibilities', 'visited', 'rejected no visit']);
+    ['house possibilities', 'priority', 'visited', 'rejected no visit']);
   assert.equal(b.ss.getSheets()[0].displayRows()[0][11], 'Ratings');
 });
 
@@ -450,4 +450,21 @@ test('backups keep photos and positions', () => {
   call(b, { action: 'delete', id: 'p1' });
   b.run('restoreBackupRow_', 2);
   assert.equal(byId(b, 'p1').photo, photoUrl());
+});
+
+// ---------- Priority ----------
+
+test('the Priority tab is created when first needed, and holds moved houses', () => {
+  const b = setup();
+  assert.ok(list(b).houses.length); // listing makes every missing tab
+  const priority = b.ss.getSheets().find((s) => s.getName().toLowerCase() === 'priority');
+  assert.ok(priority, 'Priority tab exists');
+  assert.equal(priority.displayRows()[0][0], 'House name');
+  call(b, { action: 'update', id: 'p1', changes: { status: 'priority' } });
+  assert.equal(byId(b, 'p1').status, 'priority');
+  assert.equal(priority.displayRows()[1][0], 'Bramble Cottage');
+  b.run('backupNow');
+  call(b, { action: 'update', id: 'p1', changes: { status: 'possible' } });
+  b.run('restoreBackupRow_', 2);
+  assert.equal(byId(b, 'p1').status, 'priority', 'backups include Priority');
 });

@@ -31,6 +31,7 @@ test('log out returns to the password screen', async ({ page, app }) => {
 test('groups and counts match the sheet', async ({ app }) => {
   await app.open();
   expect(await app.count('possible')).toBe(3);
+  expect(await app.count('priority')).toBe(0);
   expect(await app.count('visited')).toBe(1);
   expect(await app.count('rejected')).toBe(1);
   await app.tab('visited');
@@ -407,6 +408,12 @@ test('fits the screen without sideways scrolling, with finger-sized buttons', as
   await app.open();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+  for (const width of [page.viewportSize().width, 320]) {
+    await page.setViewportSize({ width, height: page.viewportSize().height });
+    const clipped = await page.locator('.tabs button, .move-btn').evaluateAll((els) =>
+      els.filter((x) => x.scrollWidth > x.clientWidth + 1).map((x) => x.textContent.trim()));
+    expect(clipped, `labels cut off at ${width}px`).toEqual([]);
+  }
   for (const sel of ['.rate', '.move-btn', '.missing', '.tabs button', '#addBtn']) {
     const box = await page.locator(sel).first().boundingBox();
     expect(box.height, sel).toBeGreaterThanOrEqual(34);
@@ -535,8 +542,8 @@ test('cards show the listing’s main photo, which opens the listing', async ({ 
 test('the map link goes to the exact spot when the listing gave one', async ({ app, backend }) => {
   giveListing(backend, 'p1');
   await app.open();
-  await expect(app.card('Bramble Cottage').locator('a.fact')).toHaveAttribute('href', /query=52\.559692%2C-2\.475935$/);
-  await expect(app.card('Old Mill House').locator('a.fact')).toHaveAttribute('href', /query=Sampleton%2C%20UK$/);
+  await expect(app.card('Bramble Cottage').locator('a.fact.place')).toHaveAttribute('href', /query=52\.559692%2C-2\.475935$/);
+  await expect(app.card('Old Mill House').locator('a.fact.place')).toHaveAttribute('href', /query=Sampleton%2C%20UK$/);
 });
 
 test('a new house’s photo appears shortly after saving', async ({ page, app, backend }) => {
@@ -571,4 +578,41 @@ test('prices with wording show it small, and still sort by amount', async ({ pag
   const names = await page.locator('.card h3').allTextContents();
   const order = ['Plain Number', 'Bramble Cottage', 'Guide', 'Old Mill House', 'Offer Region'];
   expect(names.filter((n) => order.includes(n))).toEqual(order);
+});
+
+// ---------- Priority ----------
+
+test('the tabs run Possibilities, Priority, Visited, Rejected', async ({ page, app }) => {
+  await app.open();
+  const tabs = await page.locator('.tabs button').evaluateAll((b) => b.map((x) => x.firstChild.textContent.trim()));
+  expect(tabs).toEqual(['Possibilities', 'Priority', 'Visited', 'Rejected']);
+});
+
+test('promote a possibility to Priority, then on to Visited', async ({ page, app, backend }) => {
+  await app.open();
+  const moves = await app.card('Bramble Cottage').locator('.move-btn').allTextContents();
+  expect(moves).toEqual(['Priority', 'Visited', 'Rejected']);
+  await app.card('Bramble Cottage').locator('[data-move=priority]').click();
+  await expect(page.locator('#toast')).toContainText('Moved to Priority');
+  await app.saved();
+  expect(house(backend, 'p1').status).toBe('priority');
+  expect(await app.count('priority')).toBe(1);
+
+  await app.tab('priority');
+  const fromPriority = await app.card('Bramble Cottage').locator('.move-btn').allTextContents();
+  expect(fromPriority).toEqual(['Possibilities', 'Visited', 'Rejected']);
+  await app.card('Bramble Cottage').locator('[data-move=visited]').click();
+  await app.saved();
+  expect(house(backend, 'p1').status).toBe('visited');
+  expect(backend.ss.getSheetByName('priority').displayRows()).toHaveLength(1); // just the header
+});
+
+test('Priority can be chosen in the form too', async ({ page, app, backend }) => {
+  await app.open();
+  await app.card('Old Mill House').locator('h3').click();
+  await page.selectOption('[name=status]', 'priority');
+  await page.click('.panel-head button[type=submit]');
+  await expect(page.locator('.tabs [data-status=priority]')).toHaveClass(/active/);
+  await expect(app.card('Old Mill House')).toBeVisible();
+  expect(house(backend, 'p2').status).toBe('priority');
 });
