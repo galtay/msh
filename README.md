@@ -34,8 +34,13 @@ window.MSH_API_URL = 'https://script.google.com/macros/s/XXXX/exec';
 Commit and push.
 
 ### 4. Turn on GitHub Pages
-Repo **Settings → Pages → Deploy from a branch → `main` / root**. The site appears at
-`https://<user>.github.io/msh/`.
+Repo **Settings → Pages → Source: GitHub Actions**. Every push to `main` then runs
+`.github/workflows/pages.yml`, which publishes the site at `https://<user>.github.io/msh/`.
+
+The workflow replaces every `__VERSION__` placeholder with the commit hash. That gives browsers
+fresh file URLs on each release, and lets open copies of the app notice they're out of date
+(via `version.json`) and reload themselves. Locally the placeholders stay as they are, and the
+update check is skipped.
 
 ### 5. On each device
 Open the site, enter the password once (it's remembered), then **Share → Add to Home Screen**
