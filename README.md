@@ -76,6 +76,13 @@ spreadsheet. If a listing is taken down and its photo stops loading, the card si
 Reading pages needs one extra permission (fetching web pages), so Google asks you to authorise again
 the first time you deploy this version or use that menu item.
 
+## Filling prices from Rightmove
+`npm run fill-prices` reads each house's Rightmove listing and fills in or tidies its Price
+(e.g. "Offers in Region of £525,000"); see the top of `tools/fill-prices.js`. It shows its plan and
+asks before changing anything (`--dry-run` to only look, `--yes` to skip the question). It reads the
+password from `MSH_PASSWORD` in a `.env` file at the repo root, which git ignores; without one it
+asks for it.
+
 ## Backups and restoring
 The script keeps snapshots of all three tabs in a hidden **Backups** tab, newest first: one an hour
 when anything has changed, kept for a week. From the **House Hunt** menu in the spreadsheet:

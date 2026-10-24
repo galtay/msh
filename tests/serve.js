@@ -13,7 +13,7 @@ const types = {
 http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split('?')[0]);
   const file = path.join(root, url.endsWith('/') ? url + 'index.html' : url);
-  if (!file.startsWith(root)) { res.writeHead(403); res.end(); return; }
+  if (!file.startsWith(root) || /(^|\/)\./.test(path.relative(root, file))) { res.writeHead(403); res.end(); return; }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
     res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });

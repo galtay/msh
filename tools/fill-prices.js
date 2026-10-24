@@ -12,12 +12,18 @@
 //
 //   node tools/fill-prices.js            (or: npm run fill-prices)
 //   node tools/fill-prices.js --dry-run  (show the plan only)
+//   node tools/fill-prices.js --yes      (don't ask before updating)
+//
+// The password comes from MSH_PASSWORD in a .env file at the repo root (git
+// ignores it), else from the environment, else it's asked for.
 
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
 const API_URL = (fs.readFileSync(path.join(__dirname, '..', 'config.js'), 'utf8').match(/MSH_API_URL = '([^']+)'/) || [])[1];
+try { process.loadEnvFile(path.join(__dirname, '..', '.env')); } catch (e) { /* no .env: ask instead */ }
+
 const BROWSER = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15';
 
 // The price, its wording and whether the listing is still up, from a Rightmove
@@ -101,7 +107,7 @@ async function main() {
   notes.forEach((n) => console.log(n));
   console.log(`\n${changes.length} prices to update.`);
   if (dryRun || !changes.length) return;
-  if ((await ask('Update them now? (y/N) ')).trim().toLowerCase() !== 'y') return;
+  if (!process.argv.includes('--yes') && (await ask('Update them now? (y/N) ')).trim().toLowerCase() !== 'y') return;
   for (const c of changes) {
     await api(password, { action: 'update', id: c.id, changes: { price: c.to } });
     process.stdout.write('.');
