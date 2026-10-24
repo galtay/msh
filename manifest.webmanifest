@@ -1,0 +1,12 @@
+{
+  "name": "House Hunt",
+  "short_name": "House Hunt",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f6f3ee",
+  "theme_color": "#2f5d50",
+  "icons": [
+    { "src": "icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2f5d50">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="House Hunt">
+  <title>House Hunt</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>House Hunt</h1>
+    <div class="topbar-actions">
+      <button id="refreshBtn" class="icon-btn" aria-label="Refresh">⟳</button>
+      <button id="logoutBtn" class="icon-btn small" aria-label="Log out">Log out</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-status="possible" class="active">Possibilities <span class="count"></span></button>
+    <button role="tab" data-status="visited">Visited <span class="count"></span></button>
+    <button role="tab" data-status="rejected">Rejected <span class="count"></span></button>
+  </nav>
+
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Search name, place, notes…" autocomplete="off">
+    <select id="sort" aria-label="Sort">
+      <option value="sheet">Oldest first</option>
+      <option value="priceAsc">Price ↑</option>
+      <option value="priceDesc">Price ↓</option>
+      <option value="shrewsbury">Nearest Shrewsbury</option>
+      <option value="ludlow">Nearest Ludlow</option>
+    </select>
+  </div>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main id="list" class="list"></main>
+
+  <button id="addBtn" class="fab">+ Add house</button>
+
+  <!-- Edit form: a full-screen panel (not <dialog>, which old iPads lack) -->
+  <div id="editPanel" class="panel" hidden>
+    <form id="editForm" class="panel-inner" novalidate>
+      <div class="panel-head">
+        <button type="button" class="link-btn" data-close>Cancel</button>
+        <h2 id="editTitle">House</h2>
+        <button type="submit" class="link-btn strong">Save</button>
+      </div>
+      <div class="panel-body">
+        <label>List
+          <select name="status">
+            <option value="possible">Possibilities</option>
+            <option value="visited">Visited</option>
+            <option value="rejected">Rejected (no visit)</option>
+          </select>
+        </label>
+        <label>House name <input name="name"></label>
+        <label>Location (village or postcode) <input name="location"></label>
+        <label>Price <input name="price" placeholder="e.g. £450,000"></label>
+        <label>Link <input name="link" type="url" placeholder="https://…" autocapitalize="off" autocorrect="off"></label>
+        <div class="row2">
+          <label>To Shrewsbury <input name="distShrewsbury" placeholder="e.g. 25 min"></label>
+          <label>To Ludlow <input name="distLudlow" placeholder="e.g. 15 min"></label>
+        </div>
+        <label>Shirley's initial thoughts <textarea name="shirley" rows="3"></textarea></label>
+        <label>Martin's initial thoughts <textarea name="martin" rows="3"></textarea></label>
+        <label>Actions taken &amp; decision made <textarea name="actions" rows="3"></textarea></label>
+        <label>Estate agent contact <textarea name="agent" rows="2"></textarea></label>
+        <button type="submit" class="primary">Save</button>
+        <button type="button" id="deleteBtn" class="danger">Delete this house</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Password screen -->
+  <div id="loginPanel" class="panel login" hidden>
+    <form id="loginForm" class="login-box">
+      <div class="login-icon">🏡</div>
+      <h2>House Hunt</h2>
+      <p class="hint">Enter the family password.</p>
+      <input name="password" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password">
+      <p id="loginError" class="login-error" hidden></p>
+      <button type="submit" class="primary">Open</button>
+    </form>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
